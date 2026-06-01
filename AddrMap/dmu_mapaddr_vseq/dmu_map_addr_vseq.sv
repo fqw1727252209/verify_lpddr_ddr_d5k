@@ -200,8 +200,11 @@ class dmu_strip_rand_vseq extends dmu_base_vseq;
   bit      [`TB_ADDR_WIDTH-1:0] strip_data[40];
   bit      [`TB_ADDR_WIDTH-1:0] wr_addr_q[$];
   bit      [`TB_ADDR_WIDTH-1:0] rd_addr_q[$];
+  bit      [`TB_ADDR_WIDTH-1:0] addr_all_q[$];
 
+  //constraint data_c {data inside {'h0000_0180,'h0000_0100,'h0000_0080};}
   virtual task body();
+    rand_pkt p0;
     if(starting_phase) starting_phase.raise_objection(this);
     `uvm_info(get_full_name(), "Start strip_addr_apb_seq...", UVM_LOW)
     //2^N
@@ -252,17 +255,23 @@ class dmu_strip_rand_vseq extends dmu_base_vseq;
       `uvm_do_on_with(strip_addr_apb_seq,p_sequencer.apb_sqr_[0],{strip_addr_apb_seq.wrdata == strip_data[i];})
 
       while (wr_addr_q.size()<in_cnt) begin
-        bit [`TB_ADDR_WIDTH-1:0] rand_addr_gen;
-        std::randomize(rand_addr_gen);
-        rand_addr_gen = `DMU_BASE0_ADDR + ((rand_addr_gen % (`DMU_HIGH0_ADDR - `DMU_BASE0_ADDR + 1)) >> $countones(strip_data[i]));
-
+        p0 = new();
+        p0.randomize();
         if (i<15) begin
-          rand_addr_gen = `DMU_BASE0_ADDR + addr_2n_gen(rand_addr_gen - `DMU_BASE0_ADDR, strip_data[i]);
+          while ((addr_2n_check(p0.addr, strip_data[i])!=1'b1) & (addr_all_check(p0.addr)==1'b1)) begin
+            p0.randomize();
+          end
+          wr_addr_q.push_back(p0.addr);
+          rd_addr_q.push_back(p0.addr);
+          addr_all_q.push_back(p0.addr);
         end else begin
-          rand_addr_gen = `DMU_BASE0_ADDR + addr_3snf_gen(rand_addr_gen - `DMU_BASE0_ADDR, strip_data[i]);
+          while ((addr_3snf_check(p0.addr, strip_data[i])!=1'b1) & (addr_all_check(p0.addr)==1'b1)) begin
+            p0.randomize();
+          end
+          wr_addr_q.push_back(p0.addr);
+          rd_addr_q.push_back(p0.addr);
+          addr_all_q.push_back(p0.addr);
         end
-        wr_addr_q.push_back(rand_addr_gen);
-        rd_addr_q.push_back(rand_addr_gen);
       end
 
       while (wr_addr_q.size()>0) begin
@@ -286,11 +295,6 @@ class dmu_strip_rand_vseq extends dmu_base_vseq;
         join
       end
 
-      vsqr_chireq_finish(0);
-      `ifdef MEM_ATTACHED_ddr5sdram
-      vsqr_chireq_finish(1);
-      `endif
-
       while (rd_addr_q.size()>0) begin
         addr_gen = rd_addr_q.pop_front;
         fork
@@ -311,12 +315,6 @@ class dmu_strip_rand_vseq extends dmu_base_vseq;
           end
         join
       end
-
-      vsqr_chireq_finish(0);
-      `ifdef MEM_ATTACHED_ddr5sdram
-      vsqr_chireq_finish(1);
-      `endif
-
       repeat(20000) @(tb.clk_noc);
       vsqr_chireq_finish(2);
     end
@@ -325,32 +323,52 @@ class dmu_strip_rand_vseq extends dmu_base_vseq;
     if(starting_phase) starting_phase.drop_objection(this);
   endtask
 
-  function bit [`TB_ADDR_WIDTH-1:0] addr_2n_gen(bit[`TB_ADDR_WIDTH-1:0] step, bit[`TB_ADDR_WIDTH-1:0] strip_bits);
+  function bit addr_2n_check(bit[`TB_ADDR_WIDTH-1:0] addr, bit[`TB_ADDR_WIDTH-1:0] strip_bits);
+    bit[`TB_ADDR_WIDTH-1:0] addr_tmp_0;
+    bit[`TB_ADDR_WIDTH-1:0] addr_tmp_1;
     int ptr;
+    addr_tmp_0 = ((addr>=`DMU_BASE0_ADDR) & (addr<=`DMU_HIGH0_ADDR))? (addr-`DMU_BASE0_ADDR) : ((addr>=`DMU_BASE1_ADDR) & (addr<=`DMU_HIGH1_ADDR))? (addr-`DMU_BASE1_ADDR+`DMU_HIGH0_ADDR) : 'h0;
+
     ptr=0;
     for (int i=0; i<48; i++) begin
-      if (strip_bits[i]!=1) begin
-        addr_2n_gen[i] = step[ptr];
+      if (strip_bits[i]==1) begin
+        addr_tmp_1[ptr] = addr_tmp_0[i];
         ptr++;
-      end else begin
-        addr_2n_gen[i] = 0;
       end
+    end
+    if ((addr_tmp_1>=0) & (addr_tmp_1<=`DDR_CAPACITY)) begin
+      addr_2n_check=1'b1;
+    end else begin
+      addr_2n_check=1'b0;
     end
   endfunction
 
-  function bit [`TB_ADDR_WIDTH-1:0] addr_3snf_gen(bit[`TB_ADDR_WIDTH-1:0] step, bit[`TB_ADDR_WIDTH-1:0] strip_bits);
+  function bit addr_3snf_check(bit[`TB_ADDR_WIDTH-1:0] addr, bit[`TB_ADDR_WIDTH-1:0] strip_bits);
+    bit[`TB_ADDR_WIDTH-1:0] addr_tmp_0;
+    bit[`TB_ADDR_WIDTH-1:0] addr_tmp_1;
     int ptr;
+    addr_tmp_0 = ((addr>=`DMU_BASE0_ADDR) & (addr<=`DMU_HIGH0_ADDR))? (addr-`DMU_BASE0_ADDR) : ((addr>=`DMU_BASE1_ADDR) & (addr<=`DMU_HIGH1_ADDR))? (addr-`DMU_BASE1_ADDR+`DMU_HIGH0_ADDR) : 'h0;
+
     ptr=0;
     for (int i=0; i<48; i++) begin
-      if ((strip_bits[i]!=1)) begin
-        addr_3snf_gen[i] = step[ptr];
+      if (strip_bits[i]==1) begin
+        addr_tmp_1[ptr] = addr_tmp_0[i];
         ptr++;
-      end else begin
-        addr_3snf_gen[i] = 0;
       end
     end
-    if (((addr_3snf_gen[10:8] + addr_3snf_gen[13:11] + addr_3snf_gen[16:14])%3)!=0) begin
-      {addr_3snf_gen[10:8], addr_3snf_gen[13:11], addr_3snf_gen[16:14]} = {addr_3snf_gen[10:8], addr_3snf_gen[13:11], addr_3snf_gen[16:14]} - ((addr_3snf_gen[10:8] + addr_3snf_gen[13:11] + addr_3snf_gen[16:14])%3);
+    if ((addr_tmp_1>=0) & (addr_tmp_1<=`DDR_CAPACITY) & (((addr[10:8] + addr[13:11] + addr[16:14])%3)==0)/*snf0*/) begin
+      addr_3snf_check=1'b1;
+    end else begin
+      addr_3snf_check=1'b0;
+    end
+  endfunction
+
+  function bit addr_all_check(bit[`TB_ADDR_WIDTH-1:0] addr);
+    addr_all_check = 1'b0;
+    for (int i = addr_all_q.size()-1; i>=0; i--) begin
+      if (addr_all_q[i]==addr)begin
+        addr_all_check = 1'b1;
+      end
     end
   endfunction
 endclass
