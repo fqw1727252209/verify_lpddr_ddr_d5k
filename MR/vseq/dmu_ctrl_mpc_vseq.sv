@@ -39,7 +39,7 @@ class dmu_ctrl_mpc_vseq extends dmu_base_vseq;
                        //wrrd_chi_seq.chi_wrdata       == chi_addr+(1'b1<<40);
                        wrrd_chi_seq.chi_ns           == 'b0;
                        wrrd_chi_seq.chi_qos          == 'hf;
-                       wrrd_chi_seq.chi_cancelOnRetryAck == 'b0;
+                       wrrd_chi_seq.chi_chi_cancel0nRetryAck == 'b0;
                        wrrd_chi_seq.chi_size         == DENALI_CHI_SIZE_FULLLINE ;
                        wrrd_chi_seq.chi_rsvdc        == 'h0;})
       end
@@ -51,7 +51,7 @@ class dmu_ctrl_mpc_vseq extends dmu_base_vseq;
                        //wrrd_chi_seq.chi_wrdata       == chi_addr+(1'b1<<40);
                        wrrd_chi_seq.chi_ns           == 'b0;
                        wrrd_chi_seq.chi_qos          == 'hf;
-                       wrrd_chi_seq.chi_cancelOnRetryAck == 'b0;
+                       wrrd_chi_seq.chi_chi_cancel0nRetryAck == 'b0;
                        wrrd_chi_seq.chi_size         == DENALI_CHI_SIZE_FULLLINE ;
                        wrrd_chi_seq.chi_rsvdc        == 'h0;})
         `endif
@@ -108,7 +108,7 @@ class dmu_ctrl_mpc_2n_vseq extends dmu_base_vseq;
                        //wrrd_chi_seq.chi_wrdata       == chi_addr+(1'b1<<40);
                        wrrd_chi_seq.chi_ns           == 'b0;
                        wrrd_chi_seq.chi_qos          == 'hf;
-                       wrrd_chi_seq.chi_cancelOnRetryAck == 'b0;
+                       wrrd_chi_seq.chi_chi_cancel0nRetryAck == 'b0;
                        wrrd_chi_seq.chi_size         == DENALI_CHI_SIZE_FULLLINE ;
                        wrrd_chi_seq.chi_rsvdc        == 'h0;})
       end
@@ -121,7 +121,7 @@ class dmu_ctrl_mpc_2n_vseq extends dmu_base_vseq;
                        //wrrd_chi_seq.chi_wrdata       == chi_addr+(1'b1<<40);
                        wrrd_chi_seq.chi_ns           == 'b0;
                        wrrd_chi_seq.chi_qos          == 'hf;
-                       wrrd_chi_seq.chi_cancelOnRetryAck == 'b0;
+                       wrrd_chi_seq.chi_chi_cancel0nRetryAck == 'b0;
                        wrrd_chi_seq.chi_size         == DENALI_CHI_SIZE_FULLLINE ;
                        wrrd_chi_seq.chi_rsvdc        == 'h0;})
         `endif

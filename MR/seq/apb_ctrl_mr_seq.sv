@@ -37,19 +37,12 @@ class apb_ctrl_mr_seq extends apb_base_uvddr_seq;
         mr_test(`DDR_CTL1_BASE_ADDR);
         `uvm_info(get_full_name(),$sformatf("finish ddr5 ctrl1 MR test"), UVM_LOW);
 
-      `else // Assume LPDDR5
-        lpddr5_mr_test(`DDR_CTL0_BASE_ADDR);
-        `uvm_info(get_full_name(),$sformatf("finish lpddr5 ctrl0 MR test"), UVM_LOW);
-
-        lpddr5_mr_test(`DDR_CTL1_BASE_ADDR);
-        `uvm_info(get_full_name(),$sformatf("finish lpddr5 ctrl1 MR test"), UVM_LOW);
       `endif
 
     if(starting_phase) starting_phase.drop_objection(this);
   endtask
 
   extern virtual task mr_test(input bit[31:0]base_addr);
-  extern virtual task lpddr5_mr_test(input bit[31:0]base_addr);
   //extern virtual task ctrl_cww_test(input bit[8:0]RCD_BIT,input bit[3:0]MR_RANK,input bit[31:0] CWW_DAT,input bit[15:0]base_addr);
   //extern virtual task ctrl_cwr_test(input bit[8:0]RCD_BIT,input bit[3:0]MR_RANK,input bit[31:0]base_addr,input bit[7:0]MR_OP);
   extern virtual task ctrl_mrw_check(input bit[63:0] MRW_DAT,input bit[15:0]MRDATECC,input bit[7:0]MR_OP);
@@ -193,7 +186,7 @@ task apb_ctrl_mr_seq::ctrl_mpc_test(input bit[7:0]MPC_DAT,input bit[3:0]MPC_RANK
     sw_mpc_flow(base_addr,'b00011111,MPC_RANK);
     for(int i=0;i<4;i++)begin
       if(MPC_RANK[i]==1)begin
-        mrr_flow(32,1<<i,mrr_data_out,base_addr,mrdatecc_out);
+        mrr_flow(32,1<<i,mrr_data_out,base_addr);
         if(mrr_data_out[2:0]!=MPC_DAT[2:0])
           `uvm_error(get_type_name(),$sformatf("RTT_CK:%0h",mrr_data_out[2:0]))
       end
@@ -203,7 +196,7 @@ task apb_ctrl_mr_seq::ctrl_mpc_test(input bit[7:0]MPC_DAT,input bit[3:0]MPC_RANK
     sw_mpc_flow(base_addr,'b00011111,MPC_RANK);
     for(int i=0;i<4;i++)begin
       if(MPC_RANK[i]==1)begin
-        mrr_flow(32,1<<i,mrr_data_out,base_addr,mrdatecc_out);
+        mrr_flow(32,1<<i,mrr_data_out,base_addr);
         if(mrr_data_out[5:3]!=MPC_DAT[2:0])
           `uvm_error(get_type_name(),$sformatf("RTT_CS:%0h",mrr_data_out[5:3]))
       end
@@ -213,7 +206,7 @@ task apb_ctrl_mr_seq::ctrl_mpc_test(input bit[7:0]MPC_DAT,input bit[3:0]MPC_RANK
     sw_mpc_flow(base_addr,'b00011111,MPC_RANK);
     for(int i=0;i<4;i++)begin
       if(MPC_RANK[i]==1)begin
-        mrr_flow(33,1<<i,mrr_data_out,base_addr,mrdatecc_out);
+        mrr_flow(33,1<<i,mrr_data_out,base_addr);
         if(mrr_data_out[2:0]!=MPC_DAT[2:0])
           `uvm_error(get_type_name(),$sformatf("RTT_CA:%0h",mrr_data_out[2:0]))
       end
@@ -222,7 +215,7 @@ task apb_ctrl_mr_seq::ctrl_mpc_test(input bit[7:0]MPC_DAT,input bit[3:0]MPC_RANK
   if(MPC_DAT[7:3]=='b01010)begin
     for(int i=0;i<4;i++)begin
       if(MPC_RANK[i]==1)begin
-        mrr_flow(33,1<<i,mrr_data_out,base_addr,mrdatecc_out);
+        mrr_flow(33,1<<i,mrr_data_out,base_addr);
         if(mrr_data_out[5:3]!=MPC_DAT[2:0])
           `uvm_error(get_type_name(),$sformatf("DQS_RTT_PARK:%0h",mrr_data_out[5:3]))
       end
@@ -280,24 +273,24 @@ task apb_ctrl_mr_seq::ctrl_multicycle_mpc_test(input bit[7:0]MPC_DAT,input bit[3
 
   if(MPC_DAT[7:4]=='b0010)begin
     sw_mpc_flow(base_addr,'b00011111,MPC_RANK);
-    mrr_flow(32,MPC_RANK,mrr_data_out,base_addr,mrdatecc_out);
+    mrr_flow(32,MPC_RANK,mrr_data_out,base_addr);
     if(mrr_data_out[2:0]!=MPC_DAT[2:0])
       `uvm_error(get_type_name(),$sformatf("RTT_CK:%0h",mrr_data_out[2:0]))
   end
   if(MPC_DAT[7:4]=='b0011)begin
     sw_mpc_flow(base_addr,'b00011111,MPC_RANK);
-    mrr_flow(32,MPC_RANK,mrr_data_out,base_addr,mrdatecc_out);
+    mrr_flow(32,MPC_RANK,mrr_data_out,base_addr);
     if(mrr_data_out[5:3]!=MPC_DAT[2:0])
       `uvm_error(get_type_name(),$sformatf("RTT_CS:%0h",mrr_data_out[5:3]))
   end
   if(MPC_DAT[7:4]=='b0100)begin
     sw_mpc_flow(base_addr,'b00011111,MPC_RANK);
-    mrr_flow(33,MPC_RANK,mrr_data_out,base_addr,mrdatecc_out);
+    mrr_flow(33,MPC_RANK,mrr_data_out,base_addr);
     if(mrr_data_out[2:0]!=MPC_DAT[2:0])
       `uvm_error(get_type_name(),$sformatf("RTT_CA:%0h",mrr_data_out[2:0]))
   end
   if(MPC_DAT[7:3]=='b01010)begin
-    mrr_flow(33,MPC_RANK,mrr_data_out,base_addr,mrdatecc_out);
+    mrr_flow(33,MPC_RANK,mrr_data_out,base_addr);
     if(mrr_data_out[5:3]!=MPC_DAT[2:0])
       `uvm_error(get_type_name(),$sformatf("DQS_RTT_PARK:%0h",mrr_data_out[5:3]))
   end
@@ -306,45 +299,6 @@ task apb_ctrl_mr_seq::ctrl_multicycle_mpc_test(input bit[7:0]MPC_DAT,input bit[3
     if(mrr_data_out[2:0]!=MPC_DAT[2:0])
       `uvm_error(get_type_name(),$sformatf("RTT_PARK:%0h",mrr_data_out[2:0]))
   end
-endtask
-
-task apb_ctrl_mr_seq::lpddr5_mr_test(input bit[31:0]base_addr);
-    bit [63:0] mrdat;
-    bit [15:0] mrdatecc;
-
-    `uvm_info(get_full_name(),$sformatf("start lpddr5 ctrl MR test, base_addr=0x%0h", base_addr), UVM_LOW);
-
-    // 阶段一测试：基本 MRW/MRR 闭环检查
-    // LPDDR5 协议中的 MR3 是常用的配置寄存器（如 DBI 开启/关闭）
-    // 写 0x55 并读回
-    `uvm_info(get_full_name(), "LPDDR5 MR3 write/read test 0x55", UVM_LOW);
-    mrw_flow(3, 1, 8'h55, base_addr);
-    mrr_flow(3, 1, mrdat, base_addr, mrdatecc);
-    if(mrdat[7:0] != 8'h55) begin
-        `uvm_error(get_full_name(), $sformatf("LPDDR5 MR3 read mismatch! Exp: 0x55, Act: 0x%0h", mrdat[7:0]));
-    end
-
-    // 写 0xAA 并读回
-    `uvm_info(get_full_name(), "LPDDR5 MR3 write/read test 0xAA", UVM_LOW);
-    mrw_flow(3, 1, 8'hAA, base_addr);
-    mrr_flow(3, 1, mrdat, base_addr, mrdatecc);
-    if(mrdat[7:0] != 8'hAA) begin
-        `uvm_error(get_full_name(), $sformatf("LPDDR5 MR3 read mismatch! Exp: 0xAA, Act: 0x%0h", mrdat[7:0]));
-    end
-
-    // 写回 0x00（恢复默认状态）
-    mrw_flow(3, 1, 8'h00, base_addr);
-
-    // 增加对 MR13 (DM 相关的寄存器) 的基础读写测试
-    `uvm_info(get_full_name(), "LPDDR5 MR13 write/read test 0x33", UVM_LOW);
-    mrw_flow(13, 1, 8'h33, base_addr);
-    mrr_flow(13, 1, mrdat, base_addr, mrdatecc);
-    if(mrdat[7:0] != 8'h33) begin
-        `uvm_error(get_full_name(), $sformatf("LPDDR5 MR13 read mismatch! Exp: 0x33, Act: 0x%0h", mrdat[7:0]));
-    end
-    mrw_flow(13, 1, 8'h00, base_addr);
-
-    `uvm_info(get_full_name(),$sformatf("finish lpddr5 ctrl MR test, base_addr=0x%0h", base_addr), UVM_LOW);
 endtask
 
 `endif
