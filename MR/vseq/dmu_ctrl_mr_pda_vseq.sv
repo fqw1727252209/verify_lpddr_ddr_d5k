@@ -10,7 +10,7 @@ class dmu_ctrl_mr_pda_vseq extends dmu_base_vseq;
     apb_ctrl_mr_pda_seq        apb_ctrl_mr_pda_seq;
   `endif
 
-  chi_full_wrrd_seq        full_wrrd_chi_seq;
+  chi_full_wrard_seq        full_wrard_chi_seq;
   //chi_ptl_wrrd_seq         ptl_wrrd_chi_seq;
   chi_wrrd_seq             wrrd_chi_seq;
   chi_readAfterWrite_seq   readAfterWrite_chi_seq;

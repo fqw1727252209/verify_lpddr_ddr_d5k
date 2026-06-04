@@ -216,7 +216,6 @@ class base_test extends uvm_test;
                 $finish;
             end
         end
-        $fclose(fh);
     endfunction
 
     function void ctl_phy_field_parser();
@@ -244,10 +243,10 @@ class base_test extends uvm_test;
                 field_addr_array[line_idx] = q[2];
             end
             else begin
-                //$display("GG: %0x, %0x, line_idx=%0d", q[2].atohex(), q[2].atohex()+'h2000, line_idx);
+                $display("GG: %0x, %0x, line_idx=%0d", q[2].atohex(), q[2].atohex()+'h2000, line_idx);
                 field_addr_array[line_idx] = q[2];
             end
-            //$display("reg_name:%0s,xx:=%0s, addr=%0s,field_addr_array=%0s", q[0], q[0].substr(0,2), q[2], field_addr_array[line_idx]);
+            $display("reg_name:%0s,xx:=%0s, addr=%0s,field_addr_array=%0s", q[0], q[0].substr(0,2), q[2], field_addr_array[line_idx]);
 
             field_offset_array[line_idx] = q[3];
             field_width_array[line_idx]  = q[4];
@@ -326,11 +325,6 @@ class base_test extends uvm_test;
 
     endfunction
 
-// -------------------------------------------------------------------------
-// --- 注意：此处存在代码截断（第381行至第423行在您上传的图片中缺失） ---
-// ---       请您在实际工程中自行补充这部分缺失的内容                    ---
-// -------------------------------------------------------------------------
-
     function parse_csrcfg(string csrCfgFile);
         string line;
         int fh= $fopen(csrCfgFile, "r");
@@ -372,6 +366,7 @@ class base_test extends uvm_test;
                                     value_start = 1;
                                 j++;
                             end
+                        end
                             fieldstr = "";
                             fieldvalue = fieldvalue.substr(2,fieldvalue.len()-1);
                             value = fieldvalue.atohex();
@@ -379,11 +374,9 @@ class base_test extends uvm_test;
                         end
                         i++;
                     end
-                    else begin
-                        continue;
-                    end
+                end else begin
+                            continue;
                 end
-            end
         end
         $fclose(fh);
     endfunction : parse_csrcfg
@@ -490,12 +483,12 @@ class base_test extends uvm_test;
             misc_if.ddr5_connect = 0;
         end
 
-        $display("AAAAAAAAAAA, misc_if.proc_sram_firmware_ready=%0d", misc_if.proc_sram_firmware_ready, $time);
-        $display("AAAAAAAAAAA, misc_if.proc_sram_firmware_check=%0d", misc_if.proc_sram_firmware_check, $time);
-        $display("AAAAAAAAAAA, misc_if.proc_sram_firmware_lp54_ready_instruction=%0d", misc_if.proc_sram_firmware_lp54_ready_instruction, $time);
-        $display("AAAAAAAAAAA, misc_if.proc_sram_firmware_lp54_ready_data=%0d", misc_if.proc_sram_firmware_lp54_ready_data, $time);
-        $display("AAAAAAAAAAA, misc_if.proc_sram_firmware_lp54_check_instruction=%0d", misc_if.proc_sram_firmware_lp54_check_instruction, $time);
-        $display("AAAAAAAAAAA, misc_if.proc_sram_firmware_lp54_check_data=%0d", misc_if.proc_sram_firmware_lp54_check_data, $time);
+        $display("AAAAAAAAAA, misc_if.proc_sram_firmware_ready=%0d", misc_if.proc_sram_firmware_ready, $time);
+        $display("AAAAAAAAAA, misc_if.proc_sram_firmware_check=%0d", misc_if.proc_sram_firmware_check, $time);
+        $display("AAAAAAAAAA, misc_if.proc_sram_firmware_lp54_ready_instruction=%0d", misc_if.proc_sram_firmware_lp54_ready_instruction, $time);
+        $display("AAAAAAAAAA, misc_if.proc_sram_firmware_lp54_ready_data=%0d", misc_if.proc_sram_firmware_lp54_ready_data, $time);
+        $display("AAAAAAAAAA, misc_if.proc_sram_firmware_lp54_check_instruction=%0d", misc_if.proc_sram_firmware_lp54_check_instruction, $time);
+        $display("AAAAAAAAAA, misc_if.proc_sram_firmware_lp54_check_data=%0d", misc_if.proc_sram_firmware_lp54_check_data, $time);
     endtask
 
     virtual task init_phy_reg(int freq_index=0, bit dfs_only = 0);
@@ -602,7 +595,7 @@ class base_test extends uvm_test;
         end
 
         while ($fgets(line, fh)) begin
-            if ($sscanf(line, "%*s %*s %s %141b", insValue)) begin
+            if ($sscanf(line, "%*5s%141b", insValue)) begin
                 for (int i = 0 ; i < 5 ; i++) begin
                     if (seq_index < 210) begin
                         seq_value = (insValue >> 32*i) & 'hFFFF_FFFF;
@@ -716,7 +709,7 @@ class base_test extends uvm_test;
         set_field_by_apb("CTL_PDNEN"               , 0);
         set_field_by_apb("CTL_SWDFSEN"             , 0);
 
-        set_field_by_apb("CTL_HPRCREDIT"           , 10);
+        set_field_by_apb("CTL_HPRCREDIT"           , 16);
         set_field_by_apb("CTL_LPRCREDIT"           , 16);
         set_field_by_apb("CTL_TPWCREDIT"           , 32);
         set_field_by_apb("CTL_GPWEXPIREDTIME"      , 0);
@@ -1284,13 +1277,13 @@ if (bist == 1)
         reg_idx_queue = field_reg_array.find_index with (item == reg_name);
         foreach (reg_idx_queue[i]) begin
             if (reg_idx_queue[i] == field_idx) begin
-                //$display("Same field found, skip");
+                $display("Same field found, skip");
                 continue;
             end
             else begin
                 offset = field_offset_array[reg_idx_queue[i]].atoi();
                 reg_data = reg_data | (field_value[field_name_array[reg_idx_queue[i]]] << offset);
-                //$display("found %0s, value is %0d reg_data is %0h",field_name_array[reg_idx_queue[i]],field_value[field_name_array[reg_idx_queue[i]]],reg_data);
+                $display("found %0s, value is %0d reg_data is %0h",field_name_array[reg_idx_queue[i]],field_value[field_name_array[reg_idx_queue[i]]],reg_data);
             end
         end
 
@@ -1660,7 +1653,7 @@ if (bist == 1)
         disable fork;
 
         #2000;
-        $display("AXI WR32B SEQ ch[%2d] complete",m_ch);
+        $display("AXI_WR32B_SEQ ch[%2d] complete",m_ch);
     endtask : AXI_WR32B_SEQ
 
     task data_check();
@@ -1914,6 +1907,7 @@ if (bist == 1)
         cmd_body[22:20] = bg;
         cmd_body[19:18] = ba;
         cmd_body[17]    = 1;
+        cmd_body[12]    = 1;
         cmd_body[11]    = col[0];
         cmd_body[6:0]   = col[7:1];
 
@@ -2203,7 +2197,7 @@ if (bist == 1)
         sce_send_cmd(ch_id, 1, 1, cmd_body, seq_last, ongoing);
     endtask : sce_flush_ref
 
-    task sce_sppr_flow(int ch_id, bit[3:0] cs, bit[31:0] addi_cfg, bit seq_last, bit ongoing);
+    task sce_sppr_flow(int ch_id, bit[31:0] cmd_body, bit[31:0] addi_cfg, bit seq_last, bit ongoing);
         set_field_by_apb("CTL_CMDADDICFG", addi_cfg, ch_id);
 
         sce_send_cmd(ch_id, 1, 3, cmd_body, seq_last, ongoing);
@@ -2234,7 +2228,7 @@ if (bist == 1)
             set_field_by_apb("CTL_MPCTRIG", 1, ch_id);
             wait_field_2ch("CTL_MPCTRIG", 0, ch_id);
             wait_field_2ch("CTL_MPCBUSY", 0, ch_id);
-            $display($psprintf("%0t,  sw_mpc_flow done, ch_id is %0h, mpc_dat is %0h, mpc_rk is %0h",$time, ch_id, mpc_dat, mpc_rk));
+            $display($psprintf("%0t,  sw_mpc_flow done, ch_id is %0d, mpc_dat is %0h, mpc_rk is %0h",$time, ch_id, mpc_dat, mpc_rk));
         end
     endtask : sw_mpc_flow
 
@@ -2506,8 +2500,7 @@ if (bist == 1)
         set_field_by_apb("CTL_MRR4EN", 1, ch_id);
     endtask : mr4_en_flow
 
-    task cfg_mbist(input bit [31:0] mbistaddrbegin_mode3, input bit [31:0] mbistaddrend_mode3, input bit [31:0] mbistaddrstep_mode3, input bit [31:0] mbistrepeattime_mode3, input bit [31:0] mbistmodelist,
-        input bit [7:0] mbistcs, input bit [31:0] mbistpattlist, input bit [3:0] prbsptnidx, input bit [1:0] mbistbkbbl, input bit [2:0] mbistcolbbl);
+    task cfg_mbist(input bit [31:0] mbistaddrbegin_mode3, input bit [31:0] mbistaddrend_mode3, input bit [31:0] mbistaddrstep_mode3, input bit [31:0] mbistrepeattime_mode3, input bit [31:0] mbistmodelist,input bit [7:0] mbistcs, input bit [31:0] mbistpattlist, input bit [3:0] prbsptnidx, input bit [1:0] mbistbkbbl, input bit [2:0] mbistcolbbl);
         set_field("PUM_TOP_MBISTMODELIST",mbistmodelist);
 
         set_field("PUM_TOP_MBISTBANKBBL",mbistbkbbl);
@@ -2633,15 +2626,12 @@ if (bist == 1)
                                         value_start = 1;
                                     j++;
                                 end
+                                end
                                 fieldstr = "";
-                                if (fieldname inside {"PUM_TOP_CSRCSRACCESSCTRL0", "PUM_TOP_CSRCSRACCESSCTRL1", "PUM_TOP_PLLCTRLBOOT", "PUM_TOP_PLLCTRL8XBOOT", "PUM_TOP_CMDFREQRATIOBOOT", "PUM_TOP_FREQACCEPOINT",
-                                "PUM_TOP_RANKACCEPOINT", "PUM_TOP_LANEMULTICASTWR", "PUM_TOP_FREQMULTICASTWR", "PUM_TOP_RANKMULTICASTWR", "PUM_TOP_DATAFREQACCEPOINT", "PUM_TOP_DFIINITSTART", "PUM_TOP_DFIINITCOMPLETE",
-                                "PUM_TOP_DATARETENTIONEN", "PUM_TOP_CLKPUMGATEEN", "PUM_TOP_CMDENGGEN"}) begin
+                                if (fieldname inside {"PUM_TOP_CSRCSRACCESSCTRL0", "PUM_TOP_CSRCSRACCESSCTRL1", "PUM_TOP_PLLCTRLBOOT", "PUM_TOP_PLLCTRL8XBOOT", "PUM_TOP_CMDFREQRATIOBOOT", "PUM_TOP_FREQACCEPOINT","PUM_TOP_RANKACCEPOINT", "PUM_TOP_LANEMULTICASTWR", "PUM_TOP_FREQMULTICASTWR", "PUM_TOP_RANKMULTICASTWR", "PUM_TOP_DATAFREQACCEPOINT", "PUM_TOP_DFIINITSTART", "PUM_TOP_DFIINITCOMPLETE","PUM_TOP_DATARETENTIONEN", "PUM_TOP_CLKPUMGATEEN", "PUM_TOP_CMDENGEN"}) begin
                                     //$display($psprintf("%s do not need csr_load", fieldname));
-                                end else if ((fieldname.substr(0,4)=="DLANE" && (fieldname.substr(7,16)=="DLYTXCLKDQ" || fieldname.substr(7,16)=="DLYTXCLKDM" || fieldname.substr(7,16)=="DLYUPDCTRL" ))|| (fieldname
-                                .substr(0,4)=="CLANE" && fieldname.substr(7,15)=="DLYCMDBIT" ) ) begin
-                                end else if (fieldname.substr(0,4)=="DLANE" && ((fieldname.substr(7,22) inside {"RXDQSSHAREENGENC","RXDQSSHAREPOSENC"}) || fieldname.substr(7,13)=="RXDMENC" || (fieldname.substr(7,
-                                14) inside {"RXDQ0ENC","RXDQ1ENC","RXDQ2ENC","RXDQ4ENC","RXDQ5ENC","RXDQ6ENC","RXDQ7ENC"}) )) begin
+                                end else if ((fieldname.substr(0,4)=="DLANE" && (fieldname.substr(7,16)=="DLYTXCLKDQ" || fieldname.substr(7,16)=="DLYTXCLKDM" || fieldname.substr(7,16)=="DLYUPDCTRL" ))|| (fieldname.substr(0,4)=="CLANE" && fieldname.substr(7,15)=="DLYCMDBIT" ) ) begin
+                                end else if (fieldname.substr(0,4)=="DLANE" && ((fieldname.substr(7,22) inside {"RXDQSSHAREENGENC","RXDQSSHAREPOSENC"}) || fieldname.substr(7,13)=="RXDMENC" || (fieldname.substr(7,14) inside {"RXDQ0ENC","RXDQ1ENC","RXDQ2ENC","RXDQ4ENC","RXDQ5ENC","RXDQ6ENC","RXDQ7ENC"}) )) begin
                                 end else begin
                                     if(act=="save") begin
                                         get_field_by_apb(fieldname,value);
@@ -2656,11 +2646,9 @@ if (bist == 1)
                             end
                             i++;
                         end
-                        else begin
+                    end else begin
                             continue;
-                        end
                     end
-                end
             end
             $fclose(fh);
         end
@@ -2674,14 +2662,14 @@ if (bist == 1)
             set_field_by_apb("PUM_TOP_MEMRESETCTRL", 'h3);
             set_field_by_apb("PUM_TOP_LANEMULTICASTWR", 1'b1);
             set_field_by_apb("CLANE0_CLANEOE", 'hf);
-            set_field_by_apb("CLANE0_CLANEOE", 'hf);
+            set_field_by_apb("CLANEM_CLANEOE", 'hf);
             set_field_by_apb("PUM_TOP_LANEMULTICASTWR", 1'b0);
 
             set_field_by_apb("PUM_TOP_DATARETENTIONEN", 1'b1);
-            set_field_by_apb("PUM_TOP_PUMINTMASK", 'h3f);
-            set_field_by_apb("PUM_TOP_RANKACCEPOINT", 0);
-            set_field_by_apb("PUM_TOP_FREQACCEPOINT", 0);
-            set_field_by_apb("PUM_TOP_DATAFREQACCEPOINT", 0);
+            set_field_by_apb("PUM_TOP_PUMINTMASK", 'h3F);
+            set_field_by_apb(("PUM_TOP_RANKACCEPOINT"), 0);
+            set_field_by_apb(("PUM_TOP_FREQACCEPOINT"), 0);
+            set_field_by_apb(("PUM_TOP_DATAFREQACCEPOINT"), 0);
         end
     endtask
 
@@ -2704,7 +2692,7 @@ if (bist == 1)
             end
 
             if ($sscanf(line, "%*s %s %*4s%32b", insNum, insValue)) begin
-                //$display($psprintf("insNum = %0s, insValue = %0x", insNum, insValue));
+                $display($psprintf("insNum = %0s, insValue = %0x", insNum, insValue));
                 if(act=="save")begin
                     get_field_by_apb(insNum,insValue);
                     dr_save_reg_name1.push_back(insNum);
@@ -2794,9 +2782,7 @@ if (bist == 1)
             set_field_by_apb("PUM_TOP_DATAFREQACCEPOINT", 0);
             set_field_by_apb("PUM_TOP_FREQACCEPOINT", 0);
 
-            data_reg={0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,200,201,202,203,204,205,206,207,208,209,210,211,216,217,218,219,220,221,222,223,224,225,226,227,228,229,230,231,232,233,234,235,236,237,238,
-            239,248,249,250,251,256,257,258,259,260,261,262,263,264,265,266,267,268,269,270,271,272,273,274,275,280,281,282,283,284,285,286,287,288,289,290,291,312,313,314,315,328,329,330,331,332,333,334
-            ,335,336,337,338,339,344,345,346,347,348,349,350,351,352,353,354,355,356,357,358,359,360,361,362,363,368,369,370,371,372,373,374,375};
+            data_reg='{0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,200,201,202,203,204,205,206,207,208,209,210,211,216,217,218,219,220,221,222,223,224,225,226,227,228,229,230,231,232,233,234,235,236,237,238,239,248,249,250,251,256,257,258,259,260,261,262,263,264,265,266,267,268,269,270,271,272,273,274,275,280,281,282,283,284,285,286,287,288,289,290,291,312,313,314,315,328,329,330,331,332,333,334,335,336,337,338,339,344,345,346,347,348,349,350,351,352,353,354,355,356,357,358,359,360,361,362,363,368,369,370,371,372,373,374,375};
             foreach(data_reg[i])begin
                 data_reg_index=data_reg[i];
                 if(data_reg_index<16) dev_num=10;
@@ -2855,6 +2841,16 @@ if (bist == 1)
 
             sr_entry(ch_id);
             set_field_by_apb("CTL_REFSWEN", 0, ch_id);
+            sr_exit(ch_id);
+        end
+    endtask
+
+    task change_to_normal_ref_flow(int ch_id);
+        bit [1:0] ref_mode;
+        get_field_by_apb("CTL_REFMODE", ref_mode, ch_id);
+        if(ref_mode !=0) begin
+            fgr_flow(ch_id,1,0);
+        end
     endtask
 
     task trig_sre_flow(int ch_id);
@@ -2879,8 +2875,8 @@ if (bist == 1)
         set_field_by_apb("CTL_CTLPDSTATUSUPLOAD", 1, ch_id);
 
         get_field_by_apb("CTL_CTLPDUPDRAMSTATE",   up_dram_state[i],   ch_id);
-        get_field_by_apb("CTL_CTLPDUPDARBSTATE",   up_arb_state[i],    ch_id);
-        get_field_by_apb("CTL_CTLPDUPTREFIAB",     up_trefiab[i],      ch_id);
+        get_field_by_apb("CTL_CTLPDUPARBSTATE",   up_arb_state[i],    ch_id);
+        get_field_by_apb("CTL_CTLPDUPTREFIEAB",     up_trefiab[i],      ch_id);
         get_field_by_apb("CTL_CTLPDUPTREFIEABORI", up_trefiab_ori[i],  ch_id);
         get_field_by_apb("CTL_CTLPDUPTREFIEPB",    up_trefipb[i],      ch_id);
         get_field_by_apb("CTL_CTLPDUPREFMODE",     up_refmode[i],      ch_id);
@@ -2901,6 +2897,7 @@ if (bist == 1)
         get_field_by_apb("CTL_CTLPDUPCNTTREFIER4",     up_cnttrefi_r4[i], ch_id);
         get_field_by_apb("CTL_CTLPDUPCNTPOSTPONER5",   up_cntpost_r5[i],  ch_id);
         get_field_by_apb("CTL_CTLPDUPCNTTREFIER5",     up_cnttrefi_r5[i], ch_id); 
+        get_field_by_apb("CTL_CTLPDUPCNTTREFIER6",     up_cnttrefi_r6[i], ch_id);
         get_field_by_apb("CTL_CTLPDUPCNTTREFIER6",     up_cnttrefi_r6[i], ch_id);
         get_field_by_apb("CTL_CTLPDUPCNTPOSTPONER7",   up_cntpost_r7[i],  ch_id);
         get_field_by_apb("CTL_CTLPDUPCNTTREFIER7",     up_cnttrefi_r7[i], ch_id);
@@ -2962,7 +2959,7 @@ if (bist == 1)
 
         set_field_by_apb("CTL_CTLPDDNDRAMSTATE",   up_dram_state[i],   ch_id);
         set_field_by_apb("CTL_CTLPDDNARBSTATE",    up_arb_state[i],    ch_id);
-        set_field_by_apb("CTL_CTLPDDNTREFIAB",     up_trefiab[i],      ch_id);
+        set_field_by_apb("CTL_CTLPDDNTREFIEAB",     up_trefiab[i],      ch_id);
         set_field_by_apb("CTL_CTLPDDNTREFIEABORI", up_trefiab_ori[i],  ch_id);
         set_field_by_apb("CTL_CTLPDDNTREFIEPB",    up_trefipb[i],      ch_id);
         set_field_by_apb("CTL_CTLPDDNREFMODE",     up_refmode[i],      ch_id);
@@ -2971,70 +2968,70 @@ if (bist == 1)
         set_field_by_apb("CTL_CTLPDDNDIMMTYPE",    up_dimm_type[i],    ch_id);
         set_field_by_apb("CTL_CTLPDDNDDR45CFG",    up_dram_type[i],    ch_id);
 
-        set_field_by_apb("CTL_CTLPDDNCNTPOSTPONER0",   up_cntpost_r0[i],  ch_id);
-        set_field_by_apb("CTL_CTLPDDNCNTTREFIER0",     up_cnttrefi_r0[i], ch_id);
-        set_field_by_apb("CTL_CTLPDDNCNTPOSTPONER1",   up_cntpost_r1[i],  ch_id);
-        set_field_by_apb("CTL_CTLPDDNCNTTREFIER1",     up_cnttrefi_r1[i], ch_id);
-        set_field_by_apb("CTL_CTLPDDNCNTPOSTPONER2",   up_cntpost_r2[i],  ch_id);
-        set_field_by_apb("CTL_CTLPDDNCNTTREFIER2",     up_cnttrefi_r2[i], ch_id);
-        set_field_by_apb("CTL_CTLPDDNCNTPOSTPONER3",   up_cntpost_r3[i],  ch_id);
-        set_field_by_apb("CTL_CTLPDDNCNTTREFIER3",     up_cnttrefi_r3[i], ch_id);
-        set_field_by_apb("CTL_CTLPDDNCNTPOSTPONER4",   up_cntpost_r4[i],  ch_id);
-        set_field_by_apb("CTL_CTLPDDNCNTTREFIER4",     up_cnttrefi_r4[i], ch_id);
-        set_field_by_apb("CTL_CTLPDDNCNTPOSTPONER5",   up_cntpost_r5[i],  ch_id);
-        set_field_by_apb("CTL_CTLPDDNCNTTREFIER5",     up_cnttrefi_r5[i], ch_id);
-        set_field_by_apb("CTL_CTLPDDNCNTPOSTPONER6",   up_cntpost_r6[i],  ch_id);
-        set_field_by_apb("CTL_CTLPDDNCNTTREFIER6",     up_cnttrefi_r6[i], ch_id);
-        set_field_by_apb("CTL_CTLPDDNCNTPOSTPONER7",   up_cntpost_r7[i],  ch_id);
-        set_field_by_apb("CTL_CTLPDDNCNTTREFIER7",     up_cnttrefi_r7[i], ch_id);
-        set_field_by_apb("CTL_CTLPDDNCNTPOSTPONER8",   up_cntpost_r8[i],  ch_id);
-        set_field_by_apb("CTL_CTLPDDNCNTTREFIER8",     up_cnttrefi_r8[i], ch_id);
-        set_field_by_apb("CTL_CTLPDDNCNTPOSTPONER9",   up_cntpost_r9[i],  ch_id);
-        set_field_by_apb("CTL_CTLPDDNCNTTREFIER9",     up_cnttrefi_r9[i], ch_id);
-        set_field_by_apb("CTL_CTLPDDNCNTPOSTPONER10",  up_cntpost_r10[i], ch_id);
-        set_field_by_apb("CTL_CTLPDDNCNTTREFIER10",    up_cnttrefi_r10[i], ch_id);
-        set_field_by_apb("CTL_CTLPDDNCNTPOSTPONER11",  up_cntpost_r11[i], ch_id);
-        set_field_by_apb("CTL_CTLPDDNCNTTREFIER11",    up_cnttrefi_r11[i], ch_id);
-        set_field_by_apb("CTL_CTLPDDNCNTPOSTPONER12",  up_cntpost_r12[i], ch_id);
-        set_field_by_apb("CTL_CTLPDDNCNTTREFIER12",    up_cnttrefi_r12[i], ch_id);
-        set_field_by_apb("CTL_CTLPDDNCNTPOSTPONER13",  up_cntpost_r13[i], ch_id);
-        set_field_by_apb("CTL_CTLPDDNCNTTREFIER13",    up_cnttrefi_r13[i], ch_id);
-        set_field_by_apb("CTL_CTLPDDNCNTPOSTPONER14",  up_cntpost_r14[i], ch_id);
-        set_field_by_apb("CTL_CTLPDDNCNTTREFIER14",    up_cnttrefi_r14[i], ch_id);
-        set_field_by_apb("CTL_CTLPDDNCNTPOSTPONER15",  up_cntpost_r15[i], ch_id);
-        set_field_by_apb("CTL_CTLPDDNCNTTREFIER15",    up_cnttrefi_r15[i], ch_id);
-        set_field_by_apb("CTL_CTLPDDNCNTPOSTPONER16",  up_cntpost_r16[i], ch_id);
-        set_field_by_apb("CTL_CTLPDDNCNTTREFIER16",    up_cnttrefi_r16[i], ch_id);
-        set_field_by_apb("CTL_CTLPDDNCNTPOSTPONER17",  up_cntpost_r17[i], ch_id);
-        set_field_by_apb("CTL_CTLPDDNCNTTREFIER17",    up_cnttrefi_r17[i], ch_id);
-        set_field_by_apb("CTL_CTLPDDNCNTPOSTPONER18",  up_cntpost_r18[i], ch_id);
-        set_field_by_apb("CTL_CTLPDDNCNTTREFIER18",    up_cnttrefi_r18[i], ch_id);
-        set_field_by_apb("CTL_CTLPDDNCNTPOSTPONER19",  up_cntpost_r19[i], ch_id);
-        set_field_by_apb("CTL_CTLPDDNCNTTREFIER19",    up_cnttrefi_r19[i], ch_id);
-        set_field_by_apb("CTL_CTLPDDNCNTPOSTPONER20",  up_cntpost_r20[i], ch_id);
-        set_field_by_apb("CTL_CTLPDDNCNTTREFIER20",    up_cnttrefi_r20[i], ch_id);
-        set_field_by_apb("CTL_CTLPDDNCNTPOSTPONER21",  up_cntpost_r21[i], ch_id);
-        set_field_by_apb("CTL_CTLPDDNCNTTREFIER21",    up_cnttrefi_r21[i], ch_id);
-        set_field_by_apb("CTL_CTLPDDNCNTPOSTPONER22",  up_cntpost_r22[i], ch_id);
-        set_field_by_apb("CTL_CTLPDDNCNTTREFIER22",    up_cnttrefi_r22[i], ch_id);
-        set_field_by_apb("CTL_CTLPDDNCNTPOSTPONER23",  up_cntpost_r23[i], ch_id);
-        set_field_by_apb("CTL_CTLPDDNCNTTREFIER23",    up_cnttrefi_r23[i], ch_id);
-        set_field_by_apb("CTL_CTLPDDNCNTPOSTPONER24",  up_cntpost_r24[i], ch_id);
-        set_field_by_apb("CTL_CTLPDDNCNTTREFIER24",    up_cnttrefi_r24[i], ch_id);
-        set_field_by_apb("CTL_CTLPDDNCNTPOSTPONER25",  up_cntpost_r25[i], ch_id);
-        set_field_by_apb("CTL_CTLPDDNCNTTREFIER25",    up_cnttrefi_r25[i], ch_id);
-        set_field_by_apb("CTL_CTLPDDNCNTPOSTPONER26",  up_cntpost_r26[i], ch_id);
-        set_field_by_apb("CTL_CTLPDDNCNTTREFIER26",    up_cnttrefi_r26[i], ch_id);
-        set_field_by_apb("CTL_CTLPDDNCNTPOSTPONER27",  up_cntpost_r27[i], ch_id);
-        set_field_by_apb("CTL_CTLPDDNCNTTREFIER27",    up_cnttrefi_r27[i], ch_id);
-        set_field_by_apb("CTL_CTLPDDNCNTPOSTPONER28",  up_cntpost_r28[i], ch_id);
-        set_field_by_apb("CTL_CTLPDDNCNTTREFIER28",    up_cnttrefi_r28[i], ch_id);
-        set_field_by_apb("CTL_CTLPDDNCNTPOSTPONER29",  up_cntpost_r29[i], ch_id);
-        set_field_by_apb("CTL_CTLPDDNCNTTREFIER29",    up_cnttrefi_r29[i], ch_id);
-        set_field_by_apb("CTL_CTLPDDNCNTPOSTPONER30",  up_cntpost_r30[i], ch_id);
-        set_field_by_apb("CTL_CTLPDDNCNTTREFIER30",    up_cnttrefi_r30[i], ch_id);
-        set_field_by_apb("CTL_CTLPDDNCNTPOSTPONER31",  up_cntpost_r31[i], ch_id);
-        set_field_by_apb("CTL_CTLPDDNCNTTREFIER31",    up_cnttrefi_r31[i], ch_id);
+        get_field_by_apb("CTL_CTLPDDNCNTPOSTPONER0",   up_cntpost_r0[i],  ch_id);
+        get_field_by_apb("CTL_CTLPDDNCNTTREFIER0",     up_cnttrefi_r0[i], ch_id);
+        get_field_by_apb("CTL_CTLPDDNCNTPOSTPONER1",   up_cntpost_r1[i],  ch_id);
+        get_field_by_apb("CTL_CTLPDDNCNTTREFIER1",     up_cnttrefi_r1[i], ch_id);
+        get_field_by_apb("CTL_CTLPDDNCNTPOSTPONER2",   up_cntpost_r2[i],  ch_id);
+        get_field_by_apb("CTL_CTLPDDNCNTTREFIER2",     up_cnttrefi_r2[i], ch_id);
+        get_field_by_apb("CTL_CTLPDDNCNTPOSTPONER3",   up_cntpost_r3[i],  ch_id);
+        get_field_by_apb("CTL_CTLPDDNCNTTREFIER3",     up_cnttrefi_r3[i], ch_id);
+        get_field_by_apb("CTL_CTLPDDNCNTPOSTPONER4",   up_cntpost_r4[i],  ch_id);
+        get_field_by_apb("CTL_CTLPDDNCNTTREFIER4",     up_cnttrefi_r4[i], ch_id);
+        get_field_by_apb("CTL_CTLPDDNCNTPOSTPONER5",   up_cntpost_r5[i],  ch_id);
+        get_field_by_apb("CTL_CTLPDDNCNTTREFIER5",     up_cnttrefi_r5[i], ch_id);
+        get_field_by_apb("CTL_CTLPDDNCNTPOSTPONER6",   up_cntpost_r6[i],  ch_id);
+        get_field_by_apb("CTL_CTLPDDNCNTTREFIER6",     up_cnttrefi_r6[i], ch_id);
+        get_field_by_apb("CTL_CTLPDDNCNTPOSTPONER7",   up_cntpost_r7[i],  ch_id);
+        get_field_by_apb("CTL_CTLPDDNCNTTREFIER7",     up_cnttrefi_r7[i], ch_id);
+        get_field_by_apb("CTL_CTLPDDNCNTPOSTPONER8",   up_cntpost_r8[i],  ch_id);
+        get_field_by_apb("CTL_CTLPDDNCNTTREFIER8",     up_cnttrefi_r8[i], ch_id);
+        get_field_by_apb("CTL_CTLPDDNCNTPOSTPONER9",   up_cntpost_r9[i],  ch_id);
+        get_field_by_apb("CTL_CTLPDDNCNTTREFIER9",     up_cnttrefi_r9[i], ch_id);
+        get_field_by_apb("CTL_CTLPDDNCNTPOSTPONER10",  up_cntpost_r10[i], ch_id);
+        get_field_by_apb("CTL_CTLPDDNCNTTREFIER10",    up_cnttrefi_r10[i], ch_id);
+        get_field_by_apb("CTL_CTLPDDNCNTPOSTPONER11",  up_cntpost_r11[i], ch_id);
+        get_field_by_apb("CTL_CTLPDDNCNTTREFIER11",    up_cnttrefi_r11[i], ch_id);
+        get_field_by_apb("CTL_CTLPDDNCNTPOSTPONER12",  up_cntpost_r12[i], ch_id);
+        get_field_by_apb("CTL_CTLPDDNCNTTREFIER12",    up_cnttrefi_r12[i], ch_id);
+        get_field_by_apb("CTL_CTLPDDNCNTPOSTPONER13",  up_cntpost_r13[i], ch_id);
+        get_field_by_apb("CTL_CTLPDDNCNTTREFIER13",    up_cnttrefi_r13[i], ch_id);
+        get_field_by_apb("CTL_CTLPDDNCNTPOSTPONER14",  up_cntpost_r14[i], ch_id);
+        get_field_by_apb("CTL_CTLPDDNCNTTREFIER14",    up_cnttrefi_r14[i], ch_id);
+        get_field_by_apb("CTL_CTLPDDNCNTPOSTPONER15",  up_cntpost_r15[i], ch_id);
+        get_field_by_apb("CTL_CTLPDDNCNTTREFIER15",    up_cnttrefi_r15[i], ch_id);
+        get_field_by_apb("CTL_CTLPDDNCNTPOSTPONER16",  up_cntpost_r16[i], ch_id);
+        get_field_by_apb("CTL_CTLPDDNCNTTREFIER16",    up_cnttrefi_r16[i], ch_id);
+        get_field_by_apb("CTL_CTLPDDNCNTPOSTPONER17",  up_cntpost_r17[i], ch_id);
+        get_field_by_apb("CTL_CTLPDDNCNTTREFIER17",    up_cnttrefi_r17[i], ch_id);
+        get_field_by_apb("CTL_CTLPDDNCNTPOSTPONER18",  up_cntpost_r18[i], ch_id);
+        get_field_by_apb("CTL_CTLPDDNCNTTREFIER18",    up_cnttrefi_r18[i], ch_id);
+        get_field_by_apb("CTL_CTLPDDNCNTPOSTPONER19",  up_cntpost_r19[i], ch_id);
+        get_field_by_apb("CTL_CTLPDDNCNTTREFIER19",    up_cnttrefi_r19[i], ch_id);
+        get_field_by_apb("CTL_CTLPDDNCNTPOSTPONER20",  up_cntpost_r20[i], ch_id);
+        get_field_by_apb("CTL_CTLPDDNCNTTREFIER20",    up_cnttrefi_r20[i], ch_id);
+        get_field_by_apb("CTL_CTLPDDNCNTPOSTPONER21",  up_cntpost_r21[i], ch_id);
+        get_field_by_apb("CTL_CTLPDDNCNTTREFIER21",    up_cnttrefi_r21[i], ch_id);
+        get_field_by_apb("CTL_CTLPDDNCNTPOSTPONER22",  up_cntpost_r22[i], ch_id);
+        get_field_by_apb("CTL_CTLPDDNCNTTREFIER22",    up_cnttrefi_r22[i], ch_id);
+        get_field_by_apb("CTL_CTLPDDNCNTPOSTPONER23",  up_cntpost_r23[i], ch_id);
+        get_field_by_apb("CTL_CTLPDDNCNTTREFIER23",    up_cnttrefi_r23[i], ch_id);
+        get_field_by_apb("CTL_CTLPDDNCNTPOSTPONER24",  up_cntpost_r24[i], ch_id);
+        get_field_by_apb("CTL_CTLPDDNCNTTREFIER24",    up_cnttrefi_r24[i], ch_id);
+        get_field_by_apb("CTL_CTLPDDNCNTPOSTPONER25",  up_cntpost_r25[i], ch_id);
+        get_field_by_apb("CTL_CTLPDDNCNTTREFIER25",    up_cnttrefi_r25[i], ch_id);
+        get_field_by_apb("CTL_CTLPDDNCNTPOSTPONER26",  up_cntpost_r26[i], ch_id);
+        get_field_by_apb("CTL_CTLPDDNCNTTREFIER26",    up_cnttrefi_r26[i], ch_id);
+        get_field_by_apb("CTL_CTLPDDNCNTPOSTPONER27",  up_cntpost_r27[i], ch_id);
+        get_field_by_apb("CTL_CTLPDDNCNTTREFIER27",    up_cnttrefi_r27[i], ch_id);
+        get_field_by_apb("CTL_CTLPDDNCNTPOSTPONER28",  up_cntpost_r28[i], ch_id);
+        get_field_by_apb("CTL_CTLPDDNCNTTREFIER28",    up_cnttrefi_r28[i], ch_id);
+        get_field_by_apb("CTL_CTLPDDNCNTPOSTPONER29",  up_cntpost_r29[i], ch_id);
+        get_field_by_apb("CTL_CTLPDDNCNTTREFIER29",    up_cnttrefi_r29[i], ch_id);
+        get_field_by_apb("CTL_CTLPDDNCNTPOSTPONER30",  up_cntpost_r30[i], ch_id);
+        get_field_by_apb("CTL_CTLPDDNCNTTREFIER30",    up_cnttrefi_r30[i], ch_id);
+        get_field_by_apb("CTL_CTLPDDNCNTPOSTPONER31",  up_cntpost_r31[i], ch_id);
+        get_field_by_apb("CTL_CTLPDDNCNTTREFIER31",    up_cnttrefi_r31[i], ch_id);
 
         set_field_by_apb("CTL_CTLPDSTATUSDNLOAD", 0, ch_id);
         set_field_by_apb("CTL_CTLPDSTATUSDNLOAD", 1, ch_id);

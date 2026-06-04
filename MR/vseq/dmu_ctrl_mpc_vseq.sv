@@ -10,7 +10,7 @@ class dmu_ctrl_mpc_vseq extends dmu_base_vseq;
     apb_ctrl_test_mpc_seq            apb_ctrl_mpc_seq;
   `endif
 
-  chi_full_wrrd_seq        full_wrrd_chi_seq;
+  chi_full_wrard_seq        full_wrard_chi_seq;
   //chi_ptl_wrrd_seq         ptl_wrrd_chi_seq;
   chi_wrrd_seq             wrrd_chi_seq;
   chi_readAfterWrite_seq   readAfterWrite_chi_seq;
@@ -39,7 +39,7 @@ class dmu_ctrl_mpc_vseq extends dmu_base_vseq;
                        //wrrd_chi_seq.chi_wrdata       == chi_addr+(1'b1<<40);
                        wrrd_chi_seq.chi_ns           == 'b0;
                        wrrd_chi_seq.chi_qos          == 'hf;
-                       wrrd_chi_seq.CancelOnRetryAck == 'b0;
+                       wrrd_chi_seq.chi_cancelOnRetryAck == 'b0;
                        wrrd_chi_seq.chi_size         == DENALI_CHI_SIZE_FULLLINE ;
                        wrrd_chi_seq.chi_rsvdc        == 'h0;})
       end
@@ -51,7 +51,7 @@ class dmu_ctrl_mpc_vseq extends dmu_base_vseq;
                        //wrrd_chi_seq.chi_wrdata       == chi_addr+(1'b1<<40);
                        wrrd_chi_seq.chi_ns           == 'b0;
                        wrrd_chi_seq.chi_qos          == 'hf;
-                       wrrd_chi_seq.CancelOnRetryAck == 'b0;
+                       wrrd_chi_seq.chi_cancelOnRetryAck == 'b0;
                        wrrd_chi_seq.chi_size         == DENALI_CHI_SIZE_FULLLINE ;
                        wrrd_chi_seq.chi_rsvdc        == 'h0;})
         `endif
@@ -80,7 +80,7 @@ class dmu_ctrl_mpc_2n_vseq extends dmu_base_vseq;
     apb_ctrl_mpc_2n_seq            apb_ctrl_mpc_2n_seq;
   `endif
 
-  chi_full_wrrd_seq        full_wrrd_chi_seq;
+  chi_full_wrard_seq        full_wrard_chi_seq;
   //chi_ptl_wrrd_seq         ptl_wrrd_chi_seq;
   chi_wrrd_seq             wrrd_chi_seq;
   chi_readAfterWrite_seq   readAfterWrite_chi_seq;
@@ -108,7 +108,7 @@ class dmu_ctrl_mpc_2n_vseq extends dmu_base_vseq;
                        //wrrd_chi_seq.chi_wrdata       == chi_addr+(1'b1<<40);
                        wrrd_chi_seq.chi_ns           == 'b0;
                        wrrd_chi_seq.chi_qos          == 'hf;
-                       wrrd_chi_seq.CancelOnRetryAck == 'b0;
+                       wrrd_chi_seq.chi_cancelOnRetryAck == 'b0;
                        wrrd_chi_seq.chi_size         == DENALI_CHI_SIZE_FULLLINE ;
                        wrrd_chi_seq.chi_rsvdc        == 'h0;})
       end
@@ -121,7 +121,7 @@ class dmu_ctrl_mpc_2n_vseq extends dmu_base_vseq;
                        //wrrd_chi_seq.chi_wrdata       == chi_addr+(1'b1<<40);
                        wrrd_chi_seq.chi_ns           == 'b0;
                        wrrd_chi_seq.chi_qos          == 'hf;
-                       wrrd_chi_seq.CancelOnRetryAck == 'b0;
+                       wrrd_chi_seq.chi_cancelOnRetryAck == 'b0;
                        wrrd_chi_seq.chi_size         == DENALI_CHI_SIZE_FULLLINE ;
                        wrrd_chi_seq.chi_rsvdc        == 'h0;})
         `endif
