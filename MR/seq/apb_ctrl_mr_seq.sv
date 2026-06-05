@@ -30,13 +30,24 @@ class apb_ctrl_mr_seq extends apb_base_uvddr_seq;
       get_field_by_apb("CTL_RSECCEN",rsecc_en,`DDR_CTL0_BASE_ADDR);
       ecc_en=sbecc_en||rsecc_en;
 
-      `ifdef MEM_ATTACHED_ddr5sdram
+      `ifdef dram_ddr5_udimm
         mr_test(`DDR_CTL0_BASE_ADDR);
-        `uvm_info(get_full_name(),$sformatf("finish ddr5 ctrl0 MR test"), UVM_LOW);
+        `uvm_info(get_full_name(),$sformatf("finish ddr5 udimm ctrl0 MR test"), UVM_LOW);
 
         mr_test(`DDR_CTL1_BASE_ADDR);
-        `uvm_info(get_full_name(),$sformatf("finish ddr5 ctrl1 MR test"), UVM_LOW);
-      `else // Assume LPDDR5
+        `uvm_info(get_full_name(),$sformatf("finish ddr5 udimm ctrl1 MR test"), UVM_LOW);
+
+      `elsif dram_ddr5_rdimm
+        mr_test(`DDR_CTL0_BASE_ADDR);
+        `uvm_info(get_full_name(),$sformatf("finish ddr5 rdimm ctrl0 MR test"), UVM_LOW);
+
+        mr_test(`DDR_CTL1_BASE_ADDR);
+        `uvm_info(get_full_name(),$sformatf("finish ddr5 rdimm ctrl1 MR test"), UVM_LOW);
+
+        rdimm_rcd_test(`DDR_CTL0_BASE_ADDR);
+        rdimm_rcd_test(`DDR_CTL1_BASE_ADDR);
+
+      `elsif dram_lpddr5
         lpddr5_mr_test(`DDR_CTL0_BASE_ADDR);
         `uvm_info(get_full_name(),$sformatf("finish lpddr5 ctrl0 MR test"), UVM_LOW);
 
@@ -49,8 +60,7 @@ class apb_ctrl_mr_seq extends apb_base_uvddr_seq;
 
   extern virtual task mr_test(input bit[31:0]base_addr);
   extern virtual task lpddr5_mr_test(input bit[31:0]base_addr);
-  //extern virtual task ctrl_cww_test(input bit[8:0]RCD_BIT,input bit[3:0]MR_RANK,input bit[31:0] CWW_DAT,input bit[15:0]base_addr);
-  //extern virtual task ctrl_cwr_test(input bit[8:0]RCD_BIT,input bit[3:0]MR_RANK,input bit[31:0]base_addr,input bit[7:0]MR_OP);
+  extern virtual task rdimm_rcd_test(input bit[31:0]base_addr);
   extern virtual task ctrl_mrw_check(input bit[63:0] MRW_DAT,input bit[15:0]MRDATECC,input bit[7:0]MR_OP);
   extern virtual task ctrl_mpc_test(input bit[7:0]MPC_DAT,input bit[3:0]MPC_RANK,input bit[31:0]base_addr);
   extern virtual task ctrl_multicycle_mpc_test(input bit[7:0]MPC_DAT,input bit[3:0]MPC_RANK,input bit[31:0]base_addr);
@@ -106,6 +116,40 @@ task apb_ctrl_mr_seq::lpddr5_mr_test(input bit[31:0]base_addr);
     set_field_by_apb("CTL_DMDIS", 0, base_addr); // Enable DM in controller
 
     `uvm_info(get_full_name(),$sformatf("finish lpddr5 ctrl MR test, base_addr=0x%0h", base_addr), UVM_LOW);
+endtask
+
+task apb_ctrl_mr_seq::rdimm_rcd_test(input bit[31:0]base_addr);
+    bit [31:0] csmask0;
+    `uvm_info(get_full_name(), $sformatf("start ddr5 rdimm rcd test, base_addr=0x%0h", base_addr), UVM_LOW);
+    
+    get_field_by_apb("CTL_CSMASK", csmask0, base_addr);
+
+    //RCD test
+    ctrl_cww_test(51,1,'h1d,base_addr);
+    ctrl_cww_test(52,1,'h29,base_addr);
+    ctrl_cwr_test(51,1,base_addr,'h1d);
+    ctrl_cwr_test(52,1,base_addr,'h29);
+
+    if(csmask0 == 1 )begin
+        ctrl_cww_test(51,2,'h1d,base_addr);
+        ctrl_cww_test(52,2,'h29,base_addr);
+        ctrl_cwr_test(51,2,base_addr,'h1d);
+        ctrl_cwr_test(52,2,base_addr,'h29);
+    end
+
+    if(csmask0 == 3 )begin
+        ctrl_cww_test(51,4,'h1d,base_addr);
+        ctrl_cww_test(52,4,'h29,base_addr);
+        ctrl_cwr_test(51,4,base_addr,'h1d);
+        ctrl_cwr_test(52,4,base_addr,'h29);
+
+        ctrl_cww_test(51,8,'h1d,base_addr);
+        ctrl_cww_test(52,8,'h29,base_addr);
+        ctrl_cwr_test(51,8,base_addr,'h1d);
+        ctrl_cwr_test(52,8,base_addr,'h29);
+    end
+    
+    `uvm_info(get_full_name(), $sformatf("finish ddr5 rdimm rcd test, base_addr=0x%0h", base_addr), UVM_LOW);
 endtask
 
 task apb_ctrl_mr_seq::mr_test(input bit[31:0]base_addr);
