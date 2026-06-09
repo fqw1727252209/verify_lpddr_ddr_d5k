@@ -85,3 +85,31 @@ MR/
 3. **覆盖率要求**：
    - 必须覆盖 DM 和 DBI **同时使能** 的情况。
    - 必须覆盖 Mask 写操作时的各种 DMI 组合情况：`2'b00`, `2'b01`, `2'b10`, `2'b11`。
+
+### 5. 控制器 DM/DBI CSR 寄存器说明 (基于 UniVista User Guide)
+
+#### 5.1 DM (Data Mask) 与 DBI (Data Bus Inversion) 功能描述
+- **DM (Data Mask)**：仅在写操作期间生效。可掩码特定字节通道的数据，防止该字节被写入 DRAM，从而实现部分字节更新（partial-byte updates）。
+- **DBI (Data Bus Inversion)**：通过控制数据是否反转，减少总线上同时跳变的信号数量，降低接口功耗和同步开关噪声（SSN）。包含写 DBI 和读 DBI，分别应用于写和读方向。
+
+#### 5.2 在 LPDDR5 中的实现
+- **管脚复用**：DM 和 DBI 共享同一个管脚（DMI）；读 DBI 也是通过该 DMI 管脚实现。
+- **DBI 模式**：当 DMI 用作 DBI 时，告知 SDRAM 接收到的该字节数据是否需要逻辑反转。提供两种翻转模式：
+  - `csrCtlWrDbiEn[1] == 1'b0`：当 DQ[7:0] 中的 1 的数量大于 4 时，数据反转。
+  - `csrCtlWrDbiEn[1] == 1'b1`：当 DQ[7:2] 中的 1 的数量大于 4 时，数据反转。
+- **DM 模式**：当 DMI 用作 DM 时，用于掩码特定字节。如果某个字节不需要写入，则将 DMI 驱动为 `1`。
+- **同时使能 DM 和 DBI**：如果一个字节需要被 mask，此时该字节的写数据被强制设定为 `csrDmWfull1` 中定义的值，并且 DBI 指示位置为 `0`；否则，该字节按照 DBI 规则正常处理。
+
+#### 5.3 在 DDR5 中的实现
+- 使用 `DM_n` 管脚作为 DM 信号。当字节不需要写入时，`DM_n` 被驱动为 `0`。
+- **注意**：X4 的设备不支持 DM 功能；DDR5 不支持 DBI 功能。
+
+#### 5.4 相关 CSR 信号及配置说明
+
+| 信号名称 (Signal name) | 位宽 | 默认值 | 描述说明 (Description) |
+| :--- | :---: | :---: | :--- |
+| **csrDmDis**<br>(对应代码 `CTL_DMDIS`) | 1 | `0x1` | - `1'b0`: 写数据 Mask 使能 (Enable)<br>- `1'b1`: 写数据 Mask 禁用 (Disable) |
+| **csrDmPolar**<br>(对应代码 `CTL_DMPOLAR`) | 1 | `0x1` | - `1'b0`: `wdp_data_mask` 的每一位 `0` 代表对应的字节被 Mask（DDR5 推荐值）。<br>- `1'b1`: `wdp_data_mask` 的每一位 `1` 代表对应的字节被 Mask（LPDDR5 推荐值）。 |
+| **csrCtlWrDbiEn**<br>(对应代码 `CTL_CTLWRDBIEN`) | 2 | `0x0` | **Bit[0]**: <br> - `1'b0`: 写数据反转禁用<br> - `1'b1`: 写数据反转使能<br>**Bit[1]** (LPDDR5特有统计算法):<br> - `1'b0`: 当 byte[7:0] 中 1 的数量大于 4 时反转<br> - `1'b1`: 当 byte[7:2] 中 1 的数量大于 4 时反转 |
+| **csrDmWfull1** | 8 | `0x1` | - `1'b0`: 当开启写 DBI 且数据被 Mask 时，写入 `8'hF8`。<br>- `1'b1`: 当开启写 DBI 且数据被 Mask 时，写入 `8'hFF`。(注：手册原文两处均为1'b0属笔误，推测其一为1'b1) |
+| **csrCtlRdDbiEn**<br>(对应代码 `CTL_CTLRDDBIEN`) | 1 | `0x0` | - `1'b0`: 读数据反转禁用<br>- `1'b1`: 读数据反转使能 |

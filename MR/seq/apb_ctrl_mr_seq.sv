@@ -86,7 +86,7 @@ task apb_ctrl_mr_seq::lpddr5_mr_test(input bit[31:0]base_addr);
     if(mrdat[7:0] != 8'hAA) begin
         `uvm_error(get_full_name(), $sformatf("LPDDR5 MR3 read mismatch! Exp: 0xAA, Act: 0x%0h", mrdat[7:0]));
     end
-    mrw_flow(3, 1, 8'h00, base_addr); // 恢复默认
+    mrw_flow(3, 1, 8'h06, base_addr); // 恢复默认 (PDDS=110b)
 
     // 2. MPC 测试 (发送简单的 MPC 序列)
     `uvm_info(get_full_name(), "LPDDR5 MPC test (Start)", UVM_LOW);
@@ -96,7 +96,7 @@ task apb_ctrl_mr_seq::lpddr5_mr_test(input bit[31:0]base_addr);
     // 3. 测试 DBI 功能
     // 3.1 打开 DBI，关闭 DMI 测试 (只启用总线翻转功能)
     `uvm_info(get_full_name(), "LPDDR5 DBI ON, DM OFF Test config", UVM_LOW);
-    mrw_flow(3, 1, 8'h80, base_addr); // MR3 OP[7]=1 (DBI Write/Read Enable)
+    mrw_flow(3, 1, 8'hC6, base_addr); // MR3 OP[7:6]=2'b11 (DBI Write/Read Enable), OP[2:0]=3'b110 (PDDS Default)
     mrw_flow(13, 1, 8'h00, base_addr); // MR13 OP[5]=0 (DM Disable)
     set_field_by_apb("CTL_CTLWRDBIEN", 1, base_addr);
     set_field_by_apb("CTL_CTLRDDBIEN", 1, base_addr);
@@ -109,7 +109,7 @@ task apb_ctrl_mr_seq::lpddr5_mr_test(input bit[31:0]base_addr);
 
     // 3.3 打开 DBI，打开 DMI，读测试 (同时使能 Data Mask 和 Data Bus Inversion)
     `uvm_info(get_full_name(), "LPDDR5 DBI ON, DM ON Test config", UVM_LOW);
-    mrw_flow(3, 1, 8'h80, base_addr); // MR3 OP[7]=1 (DBI Enable)
+    mrw_flow(3, 1, 8'hC6, base_addr); // MR3 OP[7:6]=2'b11 (DBI Enable), OP[2:0]=3'b110 (PDDS Default)
     mrw_flow(13, 1, 8'h20, base_addr); // MR13 OP[5]=1 (DM Enable)
     set_field_by_apb("CTL_CTLWRDBIEN", 1, base_addr);
     set_field_by_apb("CTL_CTLRDDBIEN", 1, base_addr);
