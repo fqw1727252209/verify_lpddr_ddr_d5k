@@ -109,7 +109,7 @@ class chiport_strip_addr_vseq extends chiport_base_vseq;
                       strip_addr_apb_seq.wrdata == strip_data[i];
       })
 
-      // addr_gen = addr_strip_2n_gen( strip_data[i]);
+      // addr_gen = addr_strip_2n_gen(, strip_data[i]);
       // step_gen = addr_2n_gen(`TB_ADDR_WIDTH'h40, strip_data[i]);
 
       fork
@@ -124,12 +124,12 @@ class chiport_strip_addr_vseq extends chiport_base_vseq;
         end
 
         begin
-          run_strip_addr_task(2, `DMU_NOC_BASE_ADDR, i);
+          run_strip_addr_task(2, `DMU_NCC_BASE_ADDR, i);
         end
 
         begin
           `ifdef MEM_ATTACHED_ddr5sdram
-          run_strip_addr_task(3, `DMU_NOC_BASE_ADDR, i);
+          run_strip_addr_task(3, `DMU_NCC_BASE_ADDR, i);
           `endif
         end
       join
@@ -166,10 +166,10 @@ class chiport_strip_addr_vseq extends chiport_base_vseq;
       end
     end
 
-    if (((addr_3snf_gen[10:8] + addr_3snf_gen[13:11] + addr_3snf_gen[16:14]) % 3) != 0) begin
+    if (({addr_3snf_gen[10:8], addr_3snf_gen[13:11], addr_3snf_gen[16:14]} % 3) != 0) begin
       {addr_3snf_gen[10:8], addr_3snf_gen[13:11], addr_3snf_gen[16:14]} =
       {addr_3snf_gen[10:8], addr_3snf_gen[13:11], addr_3snf_gen[16:14]} -
-      ((addr_3snf_gen[10:8] + addr_3snf_gen[13:11] + addr_3snf_gen[16:14]) % 3);
+      {addr_3snf_gen[10:8], addr_3snf_gen[13:11], addr_3snf_gen[16:14]} % 3;
     end
   endfunction
 endclass
@@ -268,14 +268,14 @@ class chiport_strip_rand_vseq extends chiport_base_vseq;
       while (clp1_wr_addr_q.size() < in_cnt) begin
         bit [`TB_ADDR_WIDTH-1:0] rand_addr_gen;
         std::randomize(rand_addr_gen);
-        rand_addr_gen = `DMU_NOC_BASE_ADDR + ((rand_addr_gen % (`DMU_NOC_HIGH_ADDR - `DMU_NOC_BASE_ADDR + 1)) >> $countones(strip_data[i]));
+        rand_addr_gen = `DMU_NCC_BASE_ADDR + ((rand_addr_gen % (`DMU_NCC_HIGH_ADDR - `DMU_NCC_BASE_ADDR + 1)) >> $countones(strip_data[i]));
 
         if (i < 15) begin
           // 2N mode: simple address generation
-          rand_addr_gen = `DMU_NOC_BASE_ADDR + addr_2n_gen(rand_addr_gen - `DMU_NOC_BASE_ADDR, strip_data[i]);
+          rand_addr_gen = `DMU_NCC_BASE_ADDR + addr_2n_gen(rand_addr_gen - `DMU_NCC_BASE_ADDR, strip_data[i]);
         end else begin
           // 3SNF mode: 3SNF address generation
-          rand_addr_gen = `DMU_NOC_BASE_ADDR + addr_3snf_gen(rand_addr_gen - `DMU_NOC_BASE_ADDR, strip_data[i]);
+          rand_addr_gen = `DMU_NCC_BASE_ADDR + addr_3snf_gen(rand_addr_gen - `DMU_NCC_BASE_ADDR, strip_data[i]);
         end
         clp1_wr_addr_q.push_back(rand_addr_gen);
         clp1_rd_addr_q.push_back(rand_addr_gen);
@@ -408,7 +408,7 @@ class chiport_strip_rand_vseq extends chiport_base_vseq;
     int ptr;
     ptr = 0;
     for (int i = 0; i < `TB_ADDR_WIDTH; i++) begin
-      if (strip_bits[i] != 1) begin
+      if ((strip_bits[i] != 1)) begin
         addr_3snf_gen[i] = step[ptr];
         ptr++;
       end else begin
@@ -416,10 +416,10 @@ class chiport_strip_rand_vseq extends chiport_base_vseq;
       end
     end
 
-    if (((addr_3snf_gen[10:8] + addr_3snf_gen[13:11] + addr_3snf_gen[16:14]) % 3) != 0) begin
+    if (({addr_3snf_gen[10:8], addr_3snf_gen[13:11], addr_3snf_gen[16:14]} % 3) != 0) begin
       {addr_3snf_gen[10:8], addr_3snf_gen[13:11], addr_3snf_gen[16:14]} =
       {addr_3snf_gen[10:8], addr_3snf_gen[13:11], addr_3snf_gen[16:14]} -
-      ((addr_3snf_gen[10:8] + addr_3snf_gen[13:11] + addr_3snf_gen[16:14]) % 3);
+      {addr_3snf_gen[10:8], addr_3snf_gen[13:11], addr_3snf_gen[16:14]} % 3;
     end
   endfunction
 endclass
