@@ -92,7 +92,7 @@ class apb_lkecc_seq extends apb_base_uvddr_seq;
         ctl_phy_field_parser();
         // ch_sel = `SIMU_DMU_CH_SEL;
         ch_sel = 6'b111111;
-        // for (int i=0; i<6; i++) begin
+        // for (int i=0; i<2; i++) begin
         //    if (ch_sel[i]==1) begin
         //        for(int j=0;j<`RANK_NUM;j++) begin
         //            for(int k=0;k<32/`DRAM_WIDTH;k++) begin
@@ -233,7 +233,7 @@ endclass : apb_lkecc_seq
 task apb_lkecc_seq::lkecc_cfg();
     `uvm_info(get_full_name(), "start lkecc_cfg...", UVM_LOW);
 
-    for (int i=0; i<6; i++) begin
+    for (int i=0; i<2; i++) begin
         if(ch_sel[i]==1) begin
 
             for (int j=0;j<`RANK_NUM;j++) begin
@@ -283,7 +283,7 @@ task apb_lkecc_seq::lkecc_wr_err_inj(
 );
     `uvm_info(get_full_name(), "start lkecc_wr_err_inj...", UVM_LOW);
 
-    for (int i=0; i<6; i++) begin
+    for (int i=0; i<2; i++) begin
         if(ch_sel[i]==1) begin
             `uvm_info(get_full_name(), $sformatf("start lkecc_wr_err_inj for channel %0d", i), UVM_LOW);
 
@@ -335,7 +335,7 @@ task apb_lkecc_seq::lkecc_rd_err_inj(
 );
     `uvm_info(get_full_name(), "start lkecc_rd_err_inj...", UVM_LOW);
 
-    for (int i=0; i<6; i++) begin
+    for (int i=0; i<2; i++) begin
         if(ch_sel[i]==1) begin
             `uvm_info(get_full_name(), $sformatf("start lkecc_rd_err_inj for channel %0d", i), UVM_LOW);
 
@@ -379,7 +379,7 @@ task apb_lkecc_seq::lkecc_get_status(
 );
     `uvm_info(get_full_name(), "start lkecc_get_status...", UVM_LOW);
 
-    for (int i=0; i<6; i++) begin
+    for (int i=0; i<2; i++) begin
         if(ch_sel[i]==1) begin
             `uvm_info(get_full_name(), $sformatf("read lkecc status for channel %0d", i), UVM_LOW);
 
@@ -408,7 +408,7 @@ task apb_lkecc_seq::lkecc_clr_err(
 );
     `uvm_info(get_full_name(), "start lkecc_clr_err...", UVM_LOW);
 
-    for (int i=0; i<6; i++) begin
+    for (int i=0; i<2; i++) begin
         if(ch_sel[i]==1) begin
             `uvm_info(get_full_name(), $sformatf("clear lkecc error for channel %0d", i), UVM_LOW);
 

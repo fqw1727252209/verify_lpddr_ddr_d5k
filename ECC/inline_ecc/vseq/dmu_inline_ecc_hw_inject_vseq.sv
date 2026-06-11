@@ -21,8 +21,8 @@ class dmu_inline_ecc_hw_inject_vseq extends dmu_base_vseq;
   bit [5:0]   ch_sel;
 
   apb_inline_ecc_seq inline_ecc_seq;
-  // axi_base_seq axi_base;
-  // axi_fixed_addr_seq axi_fixed_addr;
+  chi_full_wrard_seq chi_wrard;
+  
 
   function new(string name="dmu_inline_ecc_hw_inject_vseq");
     super.new(name);
@@ -42,17 +42,17 @@ class dmu_inline_ecc_hw_inject_vseq extends dmu_base_vseq;
 
 
     // ch_sel = `SIMU_DMU_CH_SEL;
-    ch_sel = 6'b111111;
-    for(int i=0;i<6;i++) begin
+    ch_sel = 6'b001111;
+    for(int i=0;i<4;i++) begin
       fork
         automatic int k=i;
         if(ch_sel[k] == 1) begin
           // `uvm_info(get_type_name(),$sformatf("Start ctl%d test !",k),UVM_MEDIUM);
           //                 p_sequencer.axi4_sqr_[k].env.setMchkState(0);
           //                 p_sequencer.axi4_sqr_[k].cfg.no_resp_report=1;
-          // `uvm_do_on_with(axi_base,p_sequencer.axi4_sqr_[k],
-          //                 {axi_base.req_cnt == 1000;
-          //                  axi_base.dmu_addr == `DMU_BASE0_ADDR+'hf800;})
+          `uvm_do_on_with(chi_wrard,p_sequencer.chi_vsqr.Down_seqr_ch_[k],
+          {chi_wrard.cnt == 1000;
+          chi_wrard.chi_addr == `DMU_NOC_BASE_ADDR+'hf800;})
         end
       join_none
     end
@@ -61,16 +61,16 @@ class dmu_inline_ecc_hw_inject_vseq extends dmu_base_vseq;
     repeat(100) @(tb.clk_cfg);
 
 
-    for(int i=0;i<6;i++) begin
+    for(int i=0;i<4;i++) begin
       fork
         automatic int k=i;
         if(ch_sel[k] == 1) begin
           // `uvm_info(get_type_name(),$sformatf("Start ctl%d test !",k),UVM_MEDIUM);
           //                 p_sequencer.axi4_sqr_[k].env.setMchkState(0);
           //                 p_sequencer.axi4_sqr_[k].cfg.no_resp_report=1;
-          // `uvm_do_on_with(axi_fixed_addr,p_sequencer.axi4_sqr_[k],
-          //                 {axi_fixed_addr.req_cnt == 1;
-          //                  axi_fixed_addr.addr =='hf800;})
+          `uvm_do_on_with(chi_wrard,p_sequencer.chi_vsqr.Down_seqr_ch_[k],
+          {chi_wrard.cnt == 1;
+          chi_wrard.chi_addr == `DMU_NOC_BASE_ADDR+'hf800;})
         end
       join_none
     end

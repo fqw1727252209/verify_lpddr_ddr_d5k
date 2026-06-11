@@ -21,7 +21,7 @@ class dmu_linkecc_vseq extends dmu_base_vseq;
   bit [5:0]   ch_sel;
 
   apb_lkecc_seq lkecc_seq;
-  // axi_base_seq axi_base;
+  chi_full_wrard_seq chi_wrard;
 
   function new(string name="dmu_linkecc_vseq");
     super.new(name);
@@ -37,15 +37,15 @@ class dmu_linkecc_vseq extends dmu_base_vseq;
                    {lkecc_seq.mode    == 'h0;})
 
     // ch_sel = `SIMU_DMU_CH_SEL;
-    ch_sel = 6'b111111;
-    for(int i=0;i<6;i++) begin
+    ch_sel = 6'b001111;
+    for(int i=0;i<4;i++) begin
       fork
         automatic int k=i;
         if(ch_sel[k] == 1) begin
           `uvm_info(get_type_name(),$sformatf("Start ctl%d test !",k),UVM_MEDIUM);
-          // `uvm_do_on_with(axi_base,p_sequencer.axi4_sqr_[k],
-          //                 {axi_base.req_cnt == 100;
-          //                  axi_base.dmu_addr == `DMU_BASE0_ADDR+'hf800;})
+          `uvm_do_on_with(chi_wrard,p_sequencer.chi_vsqr.Down_seqr_ch_[k],
+          {chi_wrard.cnt == 100;
+          chi_wrard.chi_addr == `DMU_NOC_BASE_ADDR+'hf800;})
         end
       join_none
     end
@@ -56,14 +56,14 @@ class dmu_linkecc_vseq extends dmu_base_vseq;
     `uvm_do_on_with(lkecc_seq,p_sequencer.apb_sqr_[0],
                    {lkecc_seq.mode    == 'h1;})
 
-    for(int i=0;i<6;i++) begin
+    for(int i=0;i<4;i++) begin
       fork
         automatic int k=i;
         if(ch_sel[k] == 1) begin
           // `uvm_info(get_type_name(),$sformatf("Start ctl%d test !",k),UVM_MEDIUM);
-          // `uvm_do_on_with(axi_base,p_sequencer.axi4_sqr_[k],
-          //                 {axi_base.req_cnt == 100;
-          //                  axi_base.dmu_addr == `DMU_BASE0_ADDR+'hf800;})
+          `uvm_do_on_with(chi_wrard,p_sequencer.chi_vsqr.Down_seqr_ch_[k],
+          {chi_wrard.cnt == 100;
+          chi_wrard.chi_addr == `DMU_NOC_BASE_ADDR+'hf800;})
         end
       join_none
     end

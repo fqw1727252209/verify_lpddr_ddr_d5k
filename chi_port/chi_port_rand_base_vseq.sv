@@ -1,6 +1,3 @@
-`ifndef CHI_PORT_RAND_BASE_VSEQ_SV
-`define CHI_PORT_RAND_BASE_VSEQ_SV
-
 class chi_port_rand_base_vseq extends chiport_base_vseq;
 
   `uvm_object_utils(chi_port_rand_base_vseq)
@@ -72,5 +69,3 @@ class chi_port_rand_base_vseq extends chiport_base_vseq;
     if (starting_phase) starting_phase.drop_objection(this);
   endtask
 endclass
-
-`endif

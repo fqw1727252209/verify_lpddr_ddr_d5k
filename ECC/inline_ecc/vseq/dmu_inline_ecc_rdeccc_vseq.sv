@@ -23,8 +23,8 @@ class dmu_inline_ecc_rdeccc_vseq extends dmu_base_vseq;
   rand bit [7:0] sel_loc1;
 
   apb_inline_ecc_seq inline_ecc_seq;
-  // axi_base_seq axi_base;
-  // axi_fixed_addr_seq axi_fixed_addr;
+  chi_full_wrard_seq chi_wrard;
+  
 
   function new(string name="dmu_inline_ecc_rdeccc_vseq");
     super.new(name);
@@ -40,15 +40,15 @@ class dmu_inline_ecc_rdeccc_vseq extends dmu_base_vseq;
                    {inline_ecc_seq.mode    == 'h0;})
 
     // ch_sel = `SIMU_DMU_CH_SEL;
-    ch_sel = 6'b111111;
-    for(int i=0;i<6;i++) begin
+    ch_sel = 6'b001111;
+    for(int i=0;i<4;i++) begin
       fork
         automatic int k=i;
         if(ch_sel[k] == 1) begin
           `uvm_info(get_type_name(),$sformatf("Start ctl%d test !",k),UVM_MEDIUM);
-          // `uvm_do_on_with(axi_base,p_sequencer.axi4_sqr_[k],
-          //                 {axi_base.req_cnt == 100;
-          //                  axi_base.dmu_addr == `DMU_BASE0_ADDR+'hf800;})
+          `uvm_do_on_with(chi_wrard,p_sequencer.chi_vsqr.Down_seqr_ch_[k],
+          {chi_wrard.cnt == 100;
+          chi_wrard.chi_addr == `DMU_NOC_BASE_ADDR+'hf800;})
         end
       join_none
     end
@@ -61,14 +61,14 @@ class dmu_inline_ecc_rdeccc_vseq extends dmu_base_vseq;
         `uvm_do_on_with(inline_ecc_seq,p_sequencer.apb_sqr_[0],
                        {inline_ecc_seq.mode    == 'h5;})
 
-        for(int i=0;i<6;i++) begin
+        for(int i=0;i<4;i++) begin
           fork
             automatic int k=i;
             if(ch_sel[k] == 1) begin
               `uvm_info(get_type_name(),$sformatf("Start ctl%d test !",k),UVM_MEDIUM);
-              // `uvm_do_on_with(axi_fixed_addr,p_sequencer.axi4_sqr_[k],
-              //                 {axi_fixed_addr.req_cnt == 1;
-              //                  axi_fixed_addr.addr =='hf800;})
+              `uvm_do_on_with(chi_wrard,p_sequencer.chi_vsqr.Down_seqr_ch_[k],
+              {chi_wrard.cnt == 1;
+              chi_wrard.chi_addr == `DMU_NOC_BASE_ADDR+'hf800;})
             end
           join_none
         end

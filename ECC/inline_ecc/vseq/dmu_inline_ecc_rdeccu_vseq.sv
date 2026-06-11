@@ -24,8 +24,8 @@ class dmu_inline_ecc_rdeccu_vseq extends dmu_base_vseq;
   rand bit [7:0] sel_loc2;
 
   apb_inline_ecc_seq inline_ecc_seq;
-  // axi_base_seq axi_base;
-  // axi_fixed_addr_seq axi_fixed_addr;
+  chi_full_wrard_seq chi_wrard;
+  
 
 
   function new(string name="dmu_inline_ecc_rdeccu_vseq");
@@ -48,7 +48,7 @@ class dmu_inline_ecc_rdeccu_vseq extends dmu_base_vseq;
     repeat(100) @(tb.clk_cfg);
 
     // ch_sel = `SIMU_DMU_CH_SEL;
-    ch_sel = 6'b111111;
+    ch_sel = 6'b001111;
     `uvm_info(get_type_name(),$sformatf("Starting blk_off loop: blk_off range 0-3"),UVM_MEDIUM);
     for(int blk_off = 0; blk_off < 4; blk_off++) begin
         `uvm_info(get_type_name(),$sformatf("Starting blk_off=%d iteration",blk_off),UVM_MEDIUM);
@@ -59,16 +59,16 @@ class dmu_inline_ecc_rdeccu_vseq extends dmu_base_vseq;
                            {inline_ecc_seq.mode    == 'h6;})
 
             `uvm_info(get_type_name(),$sformatf("Starting channel loop: i range 0-5 for blk_off=%d, loc1=%d",blk_off,loc1),UVM_MEDIUM);
-            for(int i=0;i<6;i++) begin
+            for(int i=0;i<4;i++) begin
                 fork
                     automatic int k=i;
                     if(ch_sel[k] == 1) begin
                         `uvm_info(get_type_name(),$sformatf("Start ctl%d test !",k),UVM_MEDIUM);
                         // p_sequencer.axi4_sqr_[k].env.setMchkState(0);
                         // p_sequencer.axi4_sqr_[k].cfg.no_resp_report=1;
-                        // `uvm_do_on_with(axi_fixed_addr,p_sequencer.axi4_sqr_[k],
-                        //                 {axi_fixed_addr.req_cnt == 1;
-                        //                  axi_fixed_addr.addr == 'hf800;})
+                        `uvm_do_on_with(chi_wrard,p_sequencer.chi_vsqr.Down_seqr_ch_[k],
+                        {chi_wrard.cnt == 1;
+                        chi_wrard.chi_addr == `DMU_NOC_BASE_ADDR+'hf800;})
                     end
                 join_none
             end

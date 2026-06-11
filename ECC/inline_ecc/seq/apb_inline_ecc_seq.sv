@@ -197,7 +197,7 @@ endclass : apb_inline_ecc_seq
 task apb_inline_ecc_seq::inline_ecc_cfg();
     `uvm_info(get_full_name(), "start inline_ecc_cfg...", UVM_LOW);
     
-    for (int i=0; i<6; i++) begin
+    for (int i=0; i<2; i++) begin
         if(ch_sel[i]==1) begin
             `uvm_info(get_full_name(), $sformatf("start inline_ecc_cfg for channel %0d", i), UVM_LOW);
 
@@ -270,7 +270,7 @@ task apb_inline_ecc_seq::inline_ecc_wr_data_err_inj(
 );
     `uvm_info(get_full_name(), "start inline_ecc_wr_data_err_inj...", UVM_LOW);
     
-    for (int i=0; i<6; i++) begin
+    for (int i=0; i<2; i++) begin
         if(ch_sel[i]==1) begin
             `uvm_info(get_full_name(), $sformatf("start inline_ecc_wr_data_err_inj for channel %0d", i), UVM_LOW);
 
@@ -314,7 +314,7 @@ task apb_inline_ecc_seq::inline_ecc_rd_data_err_inj(
 );
     `uvm_info(get_full_name(), "start inline_ecc_rd_data_err_inj...", UVM_LOW);
     
-    for (int i=0; i<6; i++) begin
+    for (int i=0; i<2; i++) begin
         if(ch_sel[i]==1) begin
             `uvm_info(get_full_name(), $sformatf("start inline_ecc_rd_data_err_inj for channel %0d", i), UVM_LOW);
 
@@ -373,7 +373,7 @@ task apb_inline_ecc_seq::inline_ecc_get_status(
 );
     `uvm_info(get_full_name(), "start inline_ecc_get_status...", UVM_LOW);
 
-    for (int i=0; i<6; i++) begin
+    for (int i=0; i<2; i++) begin
         if(ch_sel[i]==1) begin
             `uvm_info(get_full_name(), $sformatf("read inline_ecc status for channel %0d", i), UVM_LOW);
 
@@ -430,7 +430,7 @@ task apb_inline_ecc_seq::inline_ecc_clr_err(
 );
     `uvm_info(get_full_name(), "start inline_ecc_clr_err...", UVM_LOW);
 
-    for (int i=0; i<6; i++) begin
+    for (int i=0; i<2; i++) begin
         if(ch_sel[i]==1) begin
             `uvm_info(get_full_name(), $sformatf("clear inline_ecc error for channel %0d", i), UVM_LOW);
 
