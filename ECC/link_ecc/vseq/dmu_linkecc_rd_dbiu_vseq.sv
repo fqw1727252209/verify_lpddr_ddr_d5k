@@ -52,13 +52,19 @@ class dmu_linkecc_rd_dbiu_vseq extends dmu_base_vseq;
             `uvm_info(get_type_name(),$sformatf("Start ctl%d test !",k),UVM_MEDIUM);
             `uvm_do_on_with(chi_wrard,p_sequencer.chi_vsqr.Down_seqr_ch_[k],
             {chi_wrard.cnt == 1;
-            chi_wrard.chi_addr == `DMU_NOC_BASE_ADDR+'h40*m;})
+            chi_wrard.chi_addr == ((k < 2) ? `DMU_NOC_BASE_ADDR : `DMU_NCC_BASE_ADDR) + 'h40*m;})
           end
         join_none
       end
       wait fork;
       repeat(400) @(tb.clk_cfg);
     end
+
+
+    `uvm_do_on_with(lkecc_seq,p_sequencer.apb_sqr_[0],
+                   {lkecc_seq.mode    == 'hB;})
+    `uvm_do_on_with(lkecc_seq,p_sequencer.apb_sqr_[0],
+                   {lkecc_seq.mode    == 'hC;})
 
     `uvm_info(get_full_name(), "dmu_linkecc_rd_dbiu_vseq complete", UVM_LOW)
 

@@ -7,9 +7,9 @@ class chi_port_rand_base_vseq extends chiport_base_vseq;
   int              in_cnt = 10000;
   apb_rand_cfg_seq apb_rand_cfg;
 
-  // 这里声明将要用到的 sequence
-  // base_rand_chi_seq 类型的变量需要在类中声明或者在 include 的基类中已经声明
-  // 假设在 chiport_base_vseq 中已经有 base_rand_chi_seq
+  // Declare the sequences used below.
+  // The base_rand_chi_seq variable must be declared in this class or an included base class.
+  // Assume base_rand_chi_seq is already provided by chiport_base_vseq.
 
   function new(string name = "chi_port_rand_base_vseq");
     super.new(name);

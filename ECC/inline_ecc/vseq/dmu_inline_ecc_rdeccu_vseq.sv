@@ -56,7 +56,10 @@ class dmu_inline_ecc_rdeccu_vseq extends dmu_base_vseq;
         for(int loc1 = 0; loc1 < 8; loc1++) begin
             `uvm_info(get_type_name(),$sformatf("Starting loc1=%d iteration for blk_off=%d",loc1,blk_off),UVM_MEDIUM);
             `uvm_do_on_with(inline_ecc_seq,p_sequencer.apb_sqr_[0],
-                           {inline_ecc_seq.mode    == 'h6;})
+                           {inline_ecc_seq.mode        == 'h6;
+                            inline_ecc_seq.sel_blk_off == blk_off;
+                            inline_ecc_seq.sel_loc1    == loc1;
+                            inline_ecc_seq.sel_loc2    == loc1 + 1;})
 
             `uvm_info(get_type_name(),$sformatf("Starting channel loop: i range 0-5 for blk_off=%d, loc1=%d",blk_off,loc1),UVM_MEDIUM);
             for(int i=0;i<4;i++) begin
@@ -68,7 +71,7 @@ class dmu_inline_ecc_rdeccu_vseq extends dmu_base_vseq;
                         // p_sequencer.axi4_sqr_[k].cfg.no_resp_report=1;
                         `uvm_do_on_with(chi_wrard,p_sequencer.chi_vsqr.Down_seqr_ch_[k],
                         {chi_wrard.cnt == 1;
-                        chi_wrard.chi_addr == `DMU_NOC_BASE_ADDR+'hf800;})
+                        chi_wrard.chi_addr == ((k < 2) ? `DMU_NOC_BASE_ADDR : `DMU_NCC_BASE_ADDR) + 'hf800;})
                     end
                 join_none
             end

@@ -22,7 +22,15 @@ class apb_ctrl_mr_seq extends apb_base_uvddr_seq;
   int ecc_en;
   int sbecc_en;
   int rsecc_en;
+  rand bit dmi_scene_only = 0;
+  rand int dmi_scene = 0;
   `uvm_object_utils(apb_ctrl_mr_seq)
+
+  constraint dmi_scene_c {
+    soft dmi_scene_only == 0;
+    soft dmi_scene == 0;
+    dmi_scene inside {[0:3]};
+  }
 
   function new(string name = "apb_ctrl_mr_seq");
     super.new(name);
@@ -52,6 +60,13 @@ class apb_ctrl_mr_seq extends apb_base_uvddr_seq;
         mr_test(`DDR_CTL1_BASE_ADDR);
         `uvm_info(get_full_name(),$sformatf("finish ddr5 udimm ctrl1 MR test"), UVM_LOW);
 
+      `elsif dram_ddr5_cudimm
+        mr_test(`DDR_CTL0_BASE_ADDR);
+        `uvm_info(get_full_name(),$sformatf("finish ddr5 cudimm ctrl0 MR test"), UVM_LOW);
+
+        mr_test(`DDR_CTL1_BASE_ADDR);
+        `uvm_info(get_full_name(),$sformatf("finish ddr5 cudimm ctrl1 MR test"), UVM_LOW);
+
       `elsif dram_ddr5_rdimm
         mr_test(`DDR_CTL0_BASE_ADDR);
         `uvm_info(get_full_name(),$sformatf("finish ddr5 rdimm ctrl0 MR test"), UVM_LOW);
@@ -63,17 +78,25 @@ class apb_ctrl_mr_seq extends apb_base_uvddr_seq;
         rdimm_rcd_test(`DDR_CTL1_BASE_ADDR);
 
       `elsif dram_lpddr5
-        lpddr5_mr_test(`DDR_CTL0_BASE_ADDR);
-        `uvm_info(get_full_name(),$sformatf("finish lpddr5 ctrl0 MR test"), UVM_LOW);
+        if(dmi_scene_only) begin
+          lpddr5_dmi_scene_config(`DDR_CTL0_BASE_ADDR, dmi_scene);
+          `uvm_info(get_full_name(),$sformatf("finish lpddr5 ctrl0 DMI scene%0d config", dmi_scene), UVM_LOW);
 
-        lpddr5_mr_test(`DDR_CTL1_BASE_ADDR);
-        `uvm_info(get_full_name(),$sformatf("finish lpddr5 ctrl1 MR test"), UVM_LOW);
+          lpddr5_dmi_scene_config(`DDR_CTL1_BASE_ADDR, dmi_scene);
+          `uvm_info(get_full_name(),$sformatf("finish lpddr5 ctrl1 DMI scene%0d config", dmi_scene), UVM_LOW);
+        end else begin
+          lpddr5_mr_test(`DDR_CTL0_BASE_ADDR);
+          `uvm_info(get_full_name(),$sformatf("finish lpddr5 ctrl0 MR test"), UVM_LOW);
 
-        lpddr5_dbi_dm_test(`DDR_CTL0_BASE_ADDR);
-        `uvm_info(get_full_name(),$sformatf("finish lpddr5 ctrl0 DBI/DM config test"), UVM_LOW);
+          lpddr5_mr_test(`DDR_CTL1_BASE_ADDR);
+          `uvm_info(get_full_name(),$sformatf("finish lpddr5 ctrl1 MR test"), UVM_LOW);
 
-        lpddr5_dbi_dm_test(`DDR_CTL1_BASE_ADDR);
-        `uvm_info(get_full_name(),$sformatf("finish lpddr5 ctrl1 DBI/DM config test"), UVM_LOW);
+          lpddr5_dbi_dm_test(`DDR_CTL0_BASE_ADDR);
+          `uvm_info(get_full_name(),$sformatf("finish lpddr5 ctrl0 DBI/DM config test"), UVM_LOW);
+
+          lpddr5_dbi_dm_test(`DDR_CTL1_BASE_ADDR);
+          `uvm_info(get_full_name(),$sformatf("finish lpddr5 ctrl1 DBI/DM config test"), UVM_LOW);
+        end
       `endif
 
     if(starting_phase) starting_phase.drop_objection(this);
@@ -81,6 +104,7 @@ class apb_ctrl_mr_seq extends apb_base_uvddr_seq;
   endtask
   extern virtual task mr_test(input bit[31:0]base_addr);
   extern virtual task lpddr5_mr_test(input bit[31:0]base_addr);
+  extern virtual task lpddr5_dmi_scene_config(input bit[31:0]base_addr, input int scene);
   extern virtual task lpddr5_dbi_dm_test(input bit[31:0]base_addr);
   extern virtual task rdimm_rcd_test(input bit[31:0]base_addr);
 
@@ -201,95 +225,153 @@ endtask
 task apb_ctrl_mr_seq::lpddr5_mr_test(input bit[31:0]base_addr);
     bit [63:0] mrdat;
     bit [15:0] mrdatecc_out;
+    bit [3:0]  mr_rank;
+    bit [7:0]  mr1_old;
+    bit [7:0]  mr1_new;
+    bit [7:0]  mpc_dat;
 
     `uvm_info(get_full_name(),$sformatf("start lpddr5 ctrl MR test, base_addr=0x%0h", base_addr), UVM_LOW);
 
-    // 1. CTL MRW/MRR 基础通路测试 —— 使用 MR16 (Write/Read 类型)
-    // 选择 MR16 OP[6] VRCG 位进行翻转测试：
-    //   - 0 = Normal Operation (default)
-    //   - 1 = VREF Fast Response (high current mode)
-    // 此位只改 VREF 电流模式，完全不影响 WCK/DBI/Bank 架构等任何时序参数，是最安全的选择。
-    // 注意：OP[5:4](CBT) 绝对不能置非零，否则 DRAM 进入 CBT 训练模式！
-    `uvm_info(get_full_name(), "LPDDR5 MR16 MRW/MRR test (VRCG bit toggle)", UVM_LOW);
+    // Follow the LPDDR5 demo for the MRW/MRR check, but keep the MR1 WL code in
+    // a safe legal range. MR1 OP[1:0] are read-only capability bits, so only the
+    // writable WL field is checked.
+    `uvm_info(get_full_name(), "LPDDR5 MR1 MRW/MRR test (write-after-read)", UVM_LOW);
+    for(int rank_idx = 0; rank_idx < `RANK_NUM; rank_idx++) begin
+        mr_rank = 4'b0001 << rank_idx;
 
-    // 先写入 0x40 (VRCG=1)
-    mrw_flow(16, 1, 8'h40, base_addr);
-    repeat(20) @(posedge tb.clk_cfg);
+        mrr_flow(1, mr_rank, mrdat, base_addr, mrdatecc_out);
+        mr1_old = mrdat[7:0];
+        mr1_new = (mr1_old[7:4] == 4'h1) ? {4'h2, mr1_old[3:0]} : {4'h1, mr1_old[3:0]};
+        `uvm_info(get_full_name(), $sformatf("LPDDR5 MR1 old value: base_addr=0x%0h, rank_mask=0x%0h, mr1=0x%0h, new=0x%0h, full_mrdat=0x%0h, ecc=0x%0h",
+                                             base_addr, mr_rank, mr1_old, mr1_new, mrdat, mrdatecc_out), UVM_LOW);
 
-    mrr_flow(16, 1, mrdat, base_addr, mrdatecc_out);
-    if(mrdat[7:0] != 8'h40) begin
-        `uvm_error(get_full_name(), $sformatf("LPDDR5 MR16 read mismatch! Exp:0x40, Act:0x%0h", mrdat[7:0]));
+        mrw_flow(1, mr_rank, mr1_new, base_addr);
+        repeat(200) @(posedge tb.clk_cfg);
+
+        mrr_flow(1, mr_rank, mrdat, base_addr, mrdatecc_out);
+        if(mrdat[7:4] != mr1_new[7:4]) begin
+            `uvm_error(get_full_name(), $sformatf("LPDDR5 MR1 WL field mismatch! base_addr=0x%0h, rank_mask=0x%0h, ExpWL:0x%0h, ActMR1:0x%0h, full_mrdat=0x%0h, ecc=0x%0h",
+                                                  base_addr, mr_rank, mr1_new[7:4], mrdat[7:0], mrdat, mrdatecc_out));
+        end
+
+        mrw_flow(1, mr_rank, mr1_old, base_addr);
+        repeat(200) @(posedge tb.clk_cfg);
+
+        mrr_flow(1, mr_rank, mrdat, base_addr, mrdatecc_out);
+        if(mrdat[7:4] != mr1_old[7:4]) begin
+            `uvm_error(get_full_name(), $sformatf("LPDDR5 MR1 WL restore mismatch! base_addr=0x%0h, rank_mask=0x%0h, ExpWL:0x%0h, ActMR1:0x%0h, full_mrdat=0x%0h, ecc=0x%0h",
+                                                  base_addr, mr_rank, mr1_old[7:4], mrdat[7:0], mrdat, mrdatecc_out));
+        end
     end
 
-    // 恢复 MR16 默认值 0x00
-    mrw_flow(16, 1, 8'h00, base_addr);
-    repeat(20) @(posedge tb.clk_cfg);
-
-    // 2. MPC 测试
+    // 2. MPC test
     `uvm_info(get_full_name(), "LPDDR5 MPC test", UVM_LOW);
-    sw_mpc_flow(base_addr, 8'h4A, 1);
-    repeat(20) @(posedge tb.clk_cfg);
+    for(int mpc_rank_idx = 0; mpc_rank_idx < `RANK_NUM; mpc_rank_idx++) begin
+        mr_rank = 4'b0001 << mpc_rank_idx;
+        for(int mpc_idx = 0; mpc_idx < 6; mpc_idx++) begin
+            mpc_dat = 8'b1000_0001 + mpc_idx;
+            if(mpc_dat == 8'b1000_0101) begin
+                `uvm_info(get_full_name(), $sformatf("LPDDR5 MPC 0x%0h is not supported, skip. base_addr=0x%0h, rank_mask=0x%0h",
+                                                     mpc_dat, base_addr, mr_rank), UVM_LOW);
+            end else begin
+                sw_mpc_flow(base_addr, mpc_dat, mr_rank);
+                repeat(20) @(posedge tb.clk_cfg);
+            end
+        end
+    end
 
-    // 注意：DBI 和 DM 功能由专项激励负责测试，此处不重复配置。
+    // DBI and DM are covered by dedicated sequences, so do not reconfigure them here.
 
     `uvm_info(get_full_name(),$sformatf("finish lpddr5 ctrl MR test, base_addr=0x%0h", base_addr), UVM_LOW);
 
 endtask
 
-// DBI/DM 配置任务：专门负责下发 DRAM 侧 MR3/MR13 和控制器徧 DBI/DM 寄存器的各种组合配置。
-// 注意：此 task 只做配置，不负责数据流量。实际的读写驱动由上层专项 vseq 负责。
-task apb_ctrl_mr_seq::lpddr5_dbi_dm_test(input bit[31:0]base_addr);
-    // MR3 初始化状态：0xC4 (DBI Write/Read=ON, PDDS=RZQ/4)
-    // MR13 初始化状态：0x00 (DMD=0, DM 默认 Enabled)
-    // 关键：每次修改 MR3 DBI 状态，必须同步修改控制器徧寄存器，否则两却协议对不上导致数据错误
+// DBI/DM configuration task: program DRAM MR3/MR13 and controller DBI/DM CSRs.
+// This task only configures state. Data traffic is driven by the upper dedicated vseq.
+task apb_ctrl_mr_seq::lpddr5_dmi_scene_config(input bit[31:0]base_addr, input int scene);
+    bit [1:0] ctl_wrdbi_value;
+    bit       ctl_rddbi_value;
+    bit       ctl_dmdis_value;
+    bit [7:0] mr3_value;
+    bit [7:0] mr13_value;
+    bit [3:0] mr_rank;
 
+    case(scene)
+      1: begin
+        `uvm_info(get_full_name(), $sformatf("[DMI Scene 1] DM=ON, DBI=OFF, base_addr=0x%0h", base_addr), UVM_LOW);
+        ctl_wrdbi_value = 2'b00;
+        ctl_rddbi_value = 1'b0;
+        ctl_dmdis_value = 1'b0;
+        mr3_value       = 8'h04;      // MR3 OP[7:6]=00 (DBI OFF), PDDS=RZQ/4
+        mr13_value      = 8'h00;      // MR13 OP[5]=0 (DMD=0, DM Enabled)
+      end
+      2: begin
+        `uvm_info(get_full_name(), $sformatf("[DMI Scene 2] DBI=ON, DM=OFF, base_addr=0x%0h", base_addr), UVM_LOW);
+        ctl_wrdbi_value = 2'b01;
+        ctl_rddbi_value = 1'b1;
+        ctl_dmdis_value = 1'b1;
+        mr3_value       = 8'hC4;      // MR3 OP[7:6]=11 (DBI ON), PDDS=RZQ/4
+        mr13_value      = 8'h20;      // MR13 OP[5]=1 (DMD=1, DM Disabled)
+      end
+      3: begin
+        `uvm_info(get_full_name(), $sformatf("[DMI Scene 3] DBI=ON, DM=ON, base_addr=0x%0h", base_addr), UVM_LOW);
+        ctl_wrdbi_value = 2'b01;
+        ctl_rddbi_value = 1'b1;
+        ctl_dmdis_value = 1'b0;
+        mr3_value       = 8'hC4;      // MR3 OP[7:6]=11 (DBI ON), PDDS=RZQ/4
+        mr13_value      = 8'h00;      // MR13 OP[5]=0 (DMD=0, DM Enabled)
+      end
+      default: begin
+        `uvm_error(get_full_name(), $sformatf("Unsupported LPDDR5 DMI scene: %0d", scene));
+        return;
+      end
+    endcase
+
+    set_field_by_apb("CTL_CTLWRDBIEN", ctl_wrdbi_value, base_addr);
+    set_field_by_apb("CTL_CTLRDDBIEN", ctl_rddbi_value, base_addr);
+
+    for(int rank_idx = 0; rank_idx < `RANK_NUM; rank_idx++) begin
+        mr_rank = 4'b0001 << rank_idx;
+        mrw_flow(3, mr_rank, mr3_value, base_addr);
+        repeat(20) @(posedge tb.clk_cfg);
+        mrw_flow(13, mr_rank, mr13_value, base_addr);
+        repeat(20) @(posedge tb.clk_cfg);
+    end
+
+    set_field_by_apb("CTL_DMDIS", ctl_dmdis_value, base_addr);
+    repeat(20) @(posedge tb.clk_cfg);
+endtask
+
+task apb_ctrl_mr_seq::lpddr5_dbi_dm_test(input bit[31:0]base_addr);
+    // MR3 initial state: 0xC4 (write/read DBI enabled, PDDS=RZQ/4).
+    // MR13 initial state: 0x00 (DMD=0, DM enabled by default).
+    // Keep controller-side DBI/DM CSRs aligned with DRAM MR settings.
     `uvm_info(get_full_name(),$sformatf("start lpddr5 DBI/DM config test, base_addr=0x%0h", base_addr), UVM_LOW);
 
     // ---------------------------------------------------------
-    // 场景 1：打开 DM，关闭 DBI（对应 README：打开DM，关闭DBI测试）
-    // 关键：必须先关控制器侧 DBI，再写 MR3，防止两侧状态不对齐
+    // Scene 1: enable DM and disable DBI.
+    // Disable controller-side DBI before programming MR3 to keep both sides aligned.
     // ---------------------------------------------------------
-    `uvm_info(get_full_name(), "[DBI/DM Scene 1] DM=ON, DBI=OFF", UVM_LOW);
-    set_field_by_apb("CTL_CTLWRDBIEN", 0, base_addr); // 先关控制器侧 DBI
-    set_field_by_apb("CTL_CTLRDDBIEN", 0, base_addr);
-    mrw_flow(3, 1, 8'h04, base_addr);      // MR3 OP[7:6]=00 (DBI OFF), PDDS=RZQ/4 保持
-    repeat(20) @(posedge tb.clk_cfg);
-    mrw_flow(13, 1, 8'h00, base_addr);     // MR13 OP[5]=0 (DMD=0, DM Enabled)
-    repeat(20) @(posedge tb.clk_cfg);
-    set_field_by_apb("CTL_DMDIS", 0, base_addr);      // 控制器 DM 使能
+    lpddr5_dmi_scene_config(base_addr, 1);
     `uvm_info(get_full_name(), "[DBI/DM Scene 1] done: DM=ON DBI=OFF configured", UVM_LOW);
-    repeat(20) @(posedge tb.clk_cfg);
 
     // ---------------------------------------------------------
-    // 场景 2：打开 DBI，关闭 DM，读测试（对应 README：打开DBI，关闭DM，读测试）
+    // Scene 2: enable DBI and disable DM.
     // ---------------------------------------------------------
-    `uvm_info(get_full_name(), "[DBI/DM Scene 2] DBI=ON, DM=OFF", UVM_LOW);
-    set_field_by_apb("CTL_CTLWRDBIEN", 1, base_addr); // 先开控制器侧 DBI
-    set_field_by_apb("CTL_CTLRDDBIEN", 1, base_addr);
-    mrw_flow(3, 1, 8'hC4, base_addr);      // MR3 OP[7:6]=11 (DBI ON), PDDS=RZQ/4
-    repeat(20) @(posedge tb.clk_cfg);
-    mrw_flow(13, 1, 8'h20, base_addr);     // MR13 OP[5]=1 (DMD=1, DM Disabled)
-    repeat(20) @(posedge tb.clk_cfg);
-    set_field_by_apb("CTL_DMDIS", 1, base_addr);      // 控制器 DM 禁止
+    lpddr5_dmi_scene_config(base_addr, 2);
     `uvm_info(get_full_name(), "[DBI/DM Scene 2] done: DBI=ON DM=OFF configured", UVM_LOW);
-    repeat(20) @(posedge tb.clk_cfg);
 
     // ---------------------------------------------------------
-    // 场景 3：打开 DBI，打开 DM，读测试（对应 README：打开DBI，打开DM，读测试）
+    // Scene 3: enable both DBI and DM.
     // ---------------------------------------------------------
-    `uvm_info(get_full_name(), "[DBI/DM Scene 3] DBI=ON, DM=ON", UVM_LOW);
-    // MR3 DBI 已是 ON，无需重复写
-    mrw_flow(13, 1, 8'h00, base_addr);     // MR13 OP[5]=0 (DMD=0, DM Enabled)
-    repeat(20) @(posedge tb.clk_cfg);
-    set_field_by_apb("CTL_DMDIS", 0, base_addr);      // 控制器 DM 使能
+    lpddr5_dmi_scene_config(base_addr, 3);
     `uvm_info(get_full_name(), "[DBI/DM Scene 3] done: DBI=ON DM=ON configured", UVM_LOW);
-    repeat(20) @(posedge tb.clk_cfg);
 
     // ---------------------------------------------------------
-    // 恢复：DBI ON, DM ON（默认状态）
+    // Restore to DBI ON and DM ON.
     // ---------------------------------------------------------
     `uvm_info(get_full_name(), "[DBI/DM Restore] restoring to DBI=ON, DM=ON", UVM_LOW);
-    // 状态已是 DBI=ON DM=ON，确认控制器侧寄存器正确即可
+    // The DRAM side is already DBI=ON and DM=ON; confirm controller CSRs.
     set_field_by_apb("CTL_CTLWRDBIEN", 1, base_addr);
     set_field_by_apb("CTL_CTLRDDBIEN", 1, base_addr);
     set_field_by_apb("CTL_DMDIS",      0, base_addr);
@@ -360,7 +442,7 @@ task apb_ctrl_mr_seq::ctrl_mpc_test(input bit[7:0]MPC_DAT,input bit[3:0]MPC_RANK
     sw_mpc_flow(base_addr,'b00011111,MPC_RANK);
     for(int i=0;i<4;i++)begin
       if(MPC_RANK[i]==1)begin
-        mrr_flow(32,1<<i,mrr_data_out,base_addr);
+        mrr_flow(32,1<<i,mrr_data_out,base_addr,mrdatecc_out);
         if(mrr_data_out[2:0]!=MPC_DAT[2:0])
           `uvm_error(get_type_name(),$sformatf("RTT_CK:%0h",mrr_data_out[2:0]))
       end
@@ -370,7 +452,7 @@ task apb_ctrl_mr_seq::ctrl_mpc_test(input bit[7:0]MPC_DAT,input bit[3:0]MPC_RANK
     sw_mpc_flow(base_addr,'b00011111,MPC_RANK);
     for(int i=0;i<4;i++)begin
       if(MPC_RANK[i]==1)begin
-        mrr_flow(32,1<<i,mrr_data_out,base_addr);
+        mrr_flow(32,1<<i,mrr_data_out,base_addr,mrdatecc_out);
         if(mrr_data_out[5:3]!=MPC_DAT[2:0])
           `uvm_error(get_type_name(),$sformatf("RTT_CS:%0h",mrr_data_out[5:3]))
       end
@@ -380,7 +462,7 @@ task apb_ctrl_mr_seq::ctrl_mpc_test(input bit[7:0]MPC_DAT,input bit[3:0]MPC_RANK
     sw_mpc_flow(base_addr,'b00011111,MPC_RANK);
     for(int i=0;i<4;i++)begin
       if(MPC_RANK[i]==1)begin
-        mrr_flow(33,1<<i,mrr_data_out,base_addr);
+        mrr_flow(33,1<<i,mrr_data_out,base_addr,mrdatecc_out);
         if(mrr_data_out[2:0]!=MPC_DAT[2:0])
           `uvm_error(get_type_name(),$sformatf("RTT_CA:%0h",mrr_data_out[2:0]))
       end
@@ -389,7 +471,7 @@ task apb_ctrl_mr_seq::ctrl_mpc_test(input bit[7:0]MPC_DAT,input bit[3:0]MPC_RANK
   if(MPC_DAT[7:3]=='b01010)begin
     for(int i=0;i<4;i++)begin
       if(MPC_RANK[i]==1)begin
-        mrr_flow(33,1<<i,mrr_data_out,base_addr);
+        mrr_flow(33,1<<i,mrr_data_out,base_addr,mrdatecc_out);
         if(mrr_data_out[5:3]!=MPC_DAT[2:0])
           `uvm_error(get_type_name(),$sformatf("DQS_RTT_PARK:%0h",mrr_data_out[5:3]))
       end
@@ -447,24 +529,24 @@ task apb_ctrl_mr_seq::ctrl_multicycle_mpc_test(input bit[7:0]MPC_DAT,input bit[3
 
   if(MPC_DAT[7:4]=='b0010)begin
     sw_mpc_flow(base_addr,'b00011111,MPC_RANK);
-    mrr_flow(32,MPC_RANK,mrr_data_out,base_addr);
+    mrr_flow(32,MPC_RANK,mrr_data_out,base_addr,mrdatecc_out);
     if(mrr_data_out[2:0]!=MPC_DAT[2:0])
       `uvm_error(get_type_name(),$sformatf("RTT_CK:%0h",mrr_data_out[2:0]))
   end
   if(MPC_DAT[7:4]=='b0011)begin
     sw_mpc_flow(base_addr,'b00011111,MPC_RANK);
-    mrr_flow(32,MPC_RANK,mrr_data_out,base_addr);
+    mrr_flow(32,MPC_RANK,mrr_data_out,base_addr,mrdatecc_out);
     if(mrr_data_out[5:3]!=MPC_DAT[2:0])
       `uvm_error(get_type_name(),$sformatf("RTT_CS:%0h",mrr_data_out[5:3]))
   end
   if(MPC_DAT[7:4]=='b0100)begin
     sw_mpc_flow(base_addr,'b00011111,MPC_RANK);
-    mrr_flow(33,MPC_RANK,mrr_data_out,base_addr);
+    mrr_flow(33,MPC_RANK,mrr_data_out,base_addr,mrdatecc_out);
     if(mrr_data_out[2:0]!=MPC_DAT[2:0])
       `uvm_error(get_type_name(),$sformatf("RTT_CA:%0h",mrr_data_out[2:0]))
   end
   if(MPC_DAT[7:3]=='b01010)begin
-    mrr_flow(33,MPC_RANK,mrr_data_out,base_addr);
+    mrr_flow(33,MPC_RANK,mrr_data_out,base_addr,mrdatecc_out);
     if(mrr_data_out[5:3]!=MPC_DAT[2:0])
       `uvm_error(get_type_name(),$sformatf("DQS_RTT_PARK:%0h",mrr_data_out[5:3]))
   end

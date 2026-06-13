@@ -50,7 +50,7 @@ class dmu_inline_ecc_vseq extends dmu_base_vseq;
           `uvm_info(get_type_name(),$sformatf("Start ctl%d test !",k),UVM_MEDIUM);
           `uvm_do_on_with(chi_wrard,p_sequencer.chi_vsqr.Down_seqr_ch_[k],
           {chi_wrard.cnt == 100;
-          chi_wrard.chi_addr == `DMU_NOC_BASE_ADDR+'hf800;})
+          chi_wrard.chi_addr == ((k < 2) ? `DMU_NOC_BASE_ADDR : `DMU_NCC_BASE_ADDR) + 'hf800;})
         end
       join_none
     end
@@ -68,7 +68,7 @@ class dmu_inline_ecc_vseq extends dmu_base_vseq;
           `uvm_info(get_type_name(),$sformatf("Start ctl%d test !",k),UVM_MEDIUM);
           `uvm_do_on_with(chi_wrard,p_sequencer.chi_vsqr.Down_seqr_ch_[k],
           {chi_wrard.cnt == 1;
-          chi_wrard.chi_addr == `DMU_NOC_BASE_ADDR+'hf800;})
+          chi_wrard.chi_addr == ((k < 2) ? `DMU_NOC_BASE_ADDR : `DMU_NCC_BASE_ADDR) + 'hf800;})
         end
       join_none
     end

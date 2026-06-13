@@ -48,7 +48,7 @@ class dmu_inline_ecc_wreccc_vseq extends dmu_base_vseq;
           `uvm_info(get_type_name(),$sformatf("Start ctl%d test !",k),UVM_MEDIUM);
           `uvm_do_on_with(chi_wrard,p_sequencer.chi_vsqr.Down_seqr_ch_[k],
           {chi_wrard.cnt == 100;
-          chi_wrard.chi_addr == `DMU_NOC_BASE_ADDR+'hf800;})
+          chi_wrard.chi_addr == ((k < 2) ? `DMU_NOC_BASE_ADDR : `DMU_NCC_BASE_ADDR) + 'hf800;})
         end
       join_none
     end
@@ -59,7 +59,11 @@ class dmu_inline_ecc_wreccc_vseq extends dmu_base_vseq;
     for(int blk_off = 0; blk_off < 4; blk_off++) begin
       for(int loc1 = 0; loc1 < 64; loc1++) begin
         `uvm_do_on_with(inline_ecc_seq,p_sequencer.apb_sqr_[0],
-                       {inline_ecc_seq.mode    == 'h3;})
+                       {inline_ecc_seq.mode        == 'h3;
+                        inline_ecc_seq.sel_blk_off == blk_off;
+                        inline_ecc_seq.sel_loc1    == loc1;
+                        if(loc1 == 63) inline_ecc_seq.sel_loc2 == 0;
+                        else inline_ecc_seq.sel_loc2 == loc1 + 1;})
 
         for(int i=0;i<4;i++) begin
           fork
@@ -68,7 +72,7 @@ class dmu_inline_ecc_wreccc_vseq extends dmu_base_vseq;
               `uvm_info(get_type_name(),$sformatf("Start ctl%d test !",k),UVM_MEDIUM);
               `uvm_do_on_with(chi_wrard,p_sequencer.chi_vsqr.Down_seqr_ch_[k],
               {chi_wrard.cnt == 1;
-              chi_wrard.chi_addr == `DMU_NOC_BASE_ADDR+'hf800;})
+              chi_wrard.chi_addr == ((k < 2) ? `DMU_NOC_BASE_ADDR : `DMU_NCC_BASE_ADDR) + 'hf800;})
             end
           join_none
         end

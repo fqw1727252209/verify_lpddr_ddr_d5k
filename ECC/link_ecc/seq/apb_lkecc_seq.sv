@@ -72,6 +72,10 @@ class apb_lkecc_seq extends apb_base_uvddr_seq;
         super.new(name);
     endfunction
 
+    function automatic bit [31:0] lkecc_ctl_base(input int ch_idx);
+        return (ch_idx == 0) ? `DDR_CTL0_BASE_ADDR : `DDR_CTL1_BASE_ADDR;
+    endfunction
+
     `include "init_config_task.sv"
 
     virtual task pre_body();
@@ -91,7 +95,7 @@ class apb_lkecc_seq extends apb_base_uvddr_seq;
         ctl_phy_reg_parser();
         ctl_phy_field_parser();
         // ch_sel = `SIMU_DMU_CH_SEL;
-        ch_sel = 6'b111111;
+        ch_sel = 6'b000011;
         // for (int i=0; i<2; i++) begin
         //    if (ch_sel[i]==1) begin
         //        for(int j=0;j<`RANK_NUM;j++) begin
@@ -107,8 +111,20 @@ class apb_lkecc_seq extends apb_base_uvddr_seq;
         if(mode=='h0) begin
             lkecc_cfg();
         end else if (mode=='h1) begin
+            // Mode 1: generic write link ECC single-bit data injection.
+            lkecc_wr_err_inj(1'b0, 1'b0, mask_lane_inject1_rand, data_lane_inject1_rand,
+                                         mask_loca_inject2_rand, data_loca_inject2_rand,
+                             1'b0, 1'b1,
+                                         mask_lane_inject1_rand, data_lane_inject1_rand,
+                                         mask_loca_inject1_rand, data_loca_inject1_rand);
 
         end else if (mode=='h2) begin
+            // Mode 2: generic write link ECC double-bit data injection.
+            lkecc_wr_err_inj(1'b0, 1'b1, mask_lane_inject1_rand, data_lane_inject1_rand,
+                                         mask_loca_inject2_rand, data_loca_inject2_rand,
+                             1'b0, 1'b1,
+                                         mask_lane_inject1_rand, data_lane_inject1_rand,
+                                         mask_loca_inject1_rand, data_loca_inject1_rand);
 
         end else if (mode=='h3) begin
             // Mode 3: Enable only dbi_inject1_en
@@ -174,6 +190,17 @@ class apb_lkecc_seq extends apb_base_uvddr_seq;
                                          mask_lane_inject1_rand, data_lane_inject1_rand,
                                          mask_loca_inject1_rand, data_loca_inject1_rand);
 
+        end else if (mode=='hB) begin
+            bit [31:0] rd_lkecc_corr_cnt;
+            bit [31:0] rd_lkecc_uncorr_cnt;
+            bit        rd_lkecc_corr_int;
+            bit        rd_lkecc_uncorr_int;
+
+            lkecc_get_status(rd_lkecc_corr_cnt, rd_lkecc_uncorr_cnt,
+                              rd_lkecc_corr_int, rd_lkecc_uncorr_int);
+
+        end else if (mode=='hC) begin
+            lkecc_clr_err(1'b1, 1'b1, 1'b1, 1'b1);
         end
 
         if(starting_phase) starting_phase.drop_objection(this);
@@ -181,6 +208,7 @@ class apb_lkecc_seq extends apb_base_uvddr_seq;
     endtask
 
     extern virtual task lkecc_cfg();
+    extern virtual task lkecc_mr22_cfg(input bit [31:0] base_addr);
 
     // Write error injection tasks
     extern virtual task lkecc_wr_err_inj(
@@ -247,25 +275,40 @@ task apb_lkecc_seq::lkecc_cfg();
 
             `uvm_info(get_full_name(), $sformatf("start lkecc_cfg for channel %0d", i), UVM_LOW);
 
-            // Step 1: Enable LK ECC for read and write
-            set_field_by_apb("CTL_RDLKECCENABLE", 1'b1, `DDR_CTL0_BASE_ADDR+i*'h0_0400);
-            set_field_by_apb("CTL_WRLKECCENABLE", 1'b1, `DDR_CTL0_BASE_ADDR+i*'h0_0400);
+            // Step 1: Enable DRAM-side write/read link ECC through MR22.
+            lkecc_mr22_cfg(lkecc_ctl_base(i));
+
+            // Step 2: Enable LK ECC for read and write in controller CSR.
+            set_field_by_apb("CTL_RDLKECCENABLE", 1'b1, lkecc_ctl_base(i));
+            set_field_by_apb("CTL_WRLKECCENABLE", 1'b1, lkecc_ctl_base(i));
             `uvm_info(get_full_name(), "LK ECC enabled for read and write", UVM_LOW);
 
-            // Step 2: Enable error counters
-            set_field_by_apb("CTL_RDLKECCUNCORRCNTEN", 1'b1, `DDR_CTL0_BASE_ADDR+i*'h0_0400);
-            set_field_by_apb("CTL_RDLKECCCORRCNTEN", 1'b1, `DDR_CTL0_BASE_ADDR+i*'h0_0400);
+            // Step 3: Enable error counters.
+            set_field_by_apb("CTL_RDLKECCUNCORRCNTEN", 1'b1, lkecc_ctl_base(i));
+            set_field_by_apb("CTL_RDLKECCCORRCNTEN", 1'b1, lkecc_ctl_base(i));
             `uvm_info(get_full_name(), "LK ECC error counters enabled", UVM_LOW);
 
-            // Step 3: Enable interrupts
-            set_field_by_apb("CTL_RDLKECCUNCORRINTEN", 1'b1, `DDR_CTL0_BASE_ADDR+i*'h0_0400);
-            set_field_by_apb("CTL_RDLKECCCORRINTEN", 1'b1, `DDR_CTL0_BASE_ADDR+i*'h0_0400);
+            // Step 4: Enable interrupts.
+            set_field_by_apb("CTL_RDLKECCUNCORRINTEN", 1'b1, lkecc_ctl_base(i));
+            set_field_by_apb("CTL_RDLKECCCORRINTEN", 1'b1, lkecc_ctl_base(i));
             `uvm_info(get_full_name(), "LK ECC interrupts enabled", UVM_LOW);
         end
     end
 
     `uvm_info(get_full_name(), "lkecc_cfg configuration completed", UVM_LOW);
 endtask : lkecc_cfg
+
+task apb_lkecc_seq::lkecc_mr22_cfg(input bit [31:0] base_addr);
+    bit [3:0]  mr_rank;
+    bit [7:0]  mr22_value;
+
+    mr22_value = 8'h50; // MR22 OP[7:6]=01 RECC enabled, OP[5:4]=01 WECC enabled.
+    for(int rank_idx = 0; rank_idx < `RANK_NUM; rank_idx++) begin
+        mr_rank = 4'b0001 << rank_idx;
+        mrw_flow(22, mr_rank, mr22_value, base_addr);
+        repeat(20) @(posedge tb.clk_cfg);
+    end
+endtask : lkecc_mr22_cfg
 
 task apb_lkecc_seq::lkecc_wr_err_inj(
     input bit        mask_inject2_en,  // WrLkeccMaskInject2
@@ -288,28 +331,28 @@ task apb_lkecc_seq::lkecc_wr_err_inj(
             `uvm_info(get_full_name(), $sformatf("start lkecc_wr_err_inj for channel %0d", i), UVM_LOW);
 
             // Set WrLkeccMaskInject2 and WrLkeccDataInject2
-            set_field_by_apb("CTL_WRLKECCMASKINJECT2", mask_inject2_en, `DDR_CTL0_BASE_ADDR+i*'h0_0400);
-            set_field_by_apb("CTL_WRLKECCDATAINJECT2", data_inject2_en, `DDR_CTL0_BASE_ADDR+i*'h0_0400);
+            set_field_by_apb("CTL_WRLKECCMASKINJECT2", mask_inject2_en, lkecc_ctl_base(i));
+            set_field_by_apb("CTL_WRLKECCDATAINJECT2", data_inject2_en, lkecc_ctl_base(i));
 
             // Set WrLkeccMaskLaneInject2 and WrLkeccDataLaneInject2
-            set_field_by_apb("CTL_WRLKECCMASKLANEINJECT2", mask_lane_inject2, `DDR_CTL0_BASE_ADDR+i*'h0_0400);
-            set_field_by_apb("CTL_WRLKECCDATALANEINJECT2", data_lane_inject2, `DDR_CTL0_BASE_ADDR+i*'h0_0400);
+            set_field_by_apb("CTL_WRLKECCMASKLANEINJECT2", mask_lane_inject2, lkecc_ctl_base(i));
+            set_field_by_apb("CTL_WRLKECCDATALANEINJECT2", data_lane_inject2, lkecc_ctl_base(i));
 
             // Set WrLkeccMaskLocaInject2 and WrLkeccDataLocaInject2
-            set_field_by_apb("CTL_WRLKECCMASKLOCAINJECT2", mask_loca_inject2, `DDR_CTL0_BASE_ADDR+i*'h0_0400);
-            set_field_by_apb("CTL_WRLKECCDATALOCAINJECT2", data_loca_inject2, `DDR_CTL0_BASE_ADDR+i*'h0_0400);
+            set_field_by_apb("CTL_WRLKECCMASKLOCAINJECT2", mask_loca_inject2, lkecc_ctl_base(i));
+            set_field_by_apb("CTL_WRLKECCDATALOCAINJECT2", data_loca_inject2, lkecc_ctl_base(i));
 
             // Set WrLkeccMaskInject1 and WrLkeccDataInject1
-            set_field_by_apb("CTL_WRLKECCMASKINJECT1", mask_inject1_en, `DDR_CTL0_BASE_ADDR+i*'h0_0400);
-            set_field_by_apb("CTL_WRLKECCDATAINJECT1", data_inject1_en, `DDR_CTL0_BASE_ADDR+i*'h0_0400);
+            set_field_by_apb("CTL_WRLKECCMASKINJECT1", mask_inject1_en, lkecc_ctl_base(i));
+            set_field_by_apb("CTL_WRLKECCDATAINJECT1", data_inject1_en, lkecc_ctl_base(i));
 
             // Set WrLkeccMaskLaneInject1 and WrLkeccDataLaneInject1
-            set_field_by_apb("CTL_WRLKECCMASKLANEINJECT1", mask_lane_inject1, `DDR_CTL0_BASE_ADDR+i*'h0_0400);
-            set_field_by_apb("CTL_WRLKECCDATALANEINJECT1", data_lane_inject1, `DDR_CTL0_BASE_ADDR+i*'h0_0400);
+            set_field_by_apb("CTL_WRLKECCMASKLANEINJECT1", mask_lane_inject1, lkecc_ctl_base(i));
+            set_field_by_apb("CTL_WRLKECCDATALANEINJECT1", data_lane_inject1, lkecc_ctl_base(i));
 
             // Set WrLkeccMaskLocaInject1 and WrLkeccDataLocaInject1
-            set_field_by_apb("CTL_WRLKECCMASKLOCAINJECT1", mask_loca_inject1, `DDR_CTL0_BASE_ADDR+i*'h0_0400);
-            set_field_by_apb("CTL_WRLKECCDATALOCAINJECT1", data_loca_inject1, `DDR_CTL0_BASE_ADDR+i*'h0_0400);
+            set_field_by_apb("CTL_WRLKECCMASKLOCAINJECT1", mask_loca_inject1, lkecc_ctl_base(i));
+            set_field_by_apb("CTL_WRLKECCDATALOCAINJECT1", data_loca_inject1, lkecc_ctl_base(i));
 
             `uvm_info(get_full_name(), $sformatf("Write error injection configured: MaskInject2=%0b, DataInject2=%0b, MaskInject1=%0b, DataInject1=%0b",
                 mask_inject2_en, data_inject2_en, mask_inject1_en, data_inject1_en), UVM_LOW);
@@ -340,28 +383,28 @@ task apb_lkecc_seq::lkecc_rd_err_inj(
             `uvm_info(get_full_name(), $sformatf("start lkecc_rd_err_inj for channel %0d", i), UVM_LOW);
 
             // Set RdLkeccDbiInject2 and RdLkeccDataInject2
-            set_field_by_apb("CTL_RDLKECCDBIINJECT2", dbi_inject2_en, `DDR_CTL0_BASE_ADDR+i*'h0_0400);
-            set_field_by_apb("CTL_RDLKECCDATAINJECT2", data_inject2_en, `DDR_CTL0_BASE_ADDR+i*'h0_0400);
+            set_field_by_apb("CTL_RDLKECCDBIINJECT2", dbi_inject2_en, lkecc_ctl_base(i));
+            set_field_by_apb("CTL_RDLKECCDATAINJECT2", data_inject2_en, lkecc_ctl_base(i));
 
             // Set RdLkeccDbiLaneInject2 and RdLkeccDataLaneInject2
-            set_field_by_apb("CTL_RDLKECCDBILANEINJECT2", dbi_lane_inject2, `DDR_CTL0_BASE_ADDR+i*'h0_0400);
-            set_field_by_apb("CTL_RDLKECCDATALANEINJECT2", data_lane_inject2, `DDR_CTL0_BASE_ADDR+i*'h0_0400);
+            set_field_by_apb("CTL_RDLKECCDBILANEINJECT2", dbi_lane_inject2, lkecc_ctl_base(i));
+            set_field_by_apb("CTL_RDLKECCDATALANEINJECT2", data_lane_inject2, lkecc_ctl_base(i));
 
             // Set RdLkeccDbiLocaInject2 and RdLkeccDataLocaInject2
-            set_field_by_apb("CTL_RDLKECCDBILOCAINJECT2", dbi_loca_inject2, `DDR_CTL0_BASE_ADDR+i*'h0_0400);
-            set_field_by_apb("CTL_RDLKECCDATALOCAINJECT2", data_loca_inject2, `DDR_CTL0_BASE_ADDR+i*'h0_0400);
+            set_field_by_apb("CTL_RDLKECCDBILOCAINJECT2", dbi_loca_inject2, lkecc_ctl_base(i));
+            set_field_by_apb("CTL_RDLKECCDATALOCAINJECT2", data_loca_inject2, lkecc_ctl_base(i));
 
             // Set RdLkeccDbiInject1 and RdLkeccDataInject1
-            set_field_by_apb("CTL_RDLKECCDBIINJECT1", dbi_inject1_en, `DDR_CTL0_BASE_ADDR+i*'h0_0400);
-            set_field_by_apb("CTL_RDLKECCDATAINJECT1", data_inject1_en, `DDR_CTL0_BASE_ADDR+i*'h0_0400);
+            set_field_by_apb("CTL_RDLKECCDBIINJECT1", dbi_inject1_en, lkecc_ctl_base(i));
+            set_field_by_apb("CTL_RDLKECCDATAINJECT1", data_inject1_en, lkecc_ctl_base(i));
 
             // Set RdLkeccDbiLaneInject1 and RdLkeccDataLaneInject1
-            set_field_by_apb("CTL_RDLKECCDBILANEINJECT1", dbi_lane_inject1, `DDR_CTL0_BASE_ADDR+i*'h0_0400);
-            set_field_by_apb("CTL_RDLKECCDATALANEINJECT1", data_lane_inject1, `DDR_CTL0_BASE_ADDR+i*'h0_0400);
+            set_field_by_apb("CTL_RDLKECCDBILANEINJECT1", dbi_lane_inject1, lkecc_ctl_base(i));
+            set_field_by_apb("CTL_RDLKECCDATALANEINJECT1", data_lane_inject1, lkecc_ctl_base(i));
 
             // Set RdLkeccDbiLocaInject1 and RdLkeccDataLocaInject1
-            set_field_by_apb("CTL_RDLKECCDBILOCAINJECT1", dbi_loca_inject1, `DDR_CTL0_BASE_ADDR+i*'h0_0400);
-            set_field_by_apb("CTL_RDLKECCDATALOCAINJECT1", data_loca_inject1, `DDR_CTL0_BASE_ADDR+i*'h0_0400);
+            set_field_by_apb("CTL_RDLKECCDBILOCAINJECT1", dbi_loca_inject1, lkecc_ctl_base(i));
+            set_field_by_apb("CTL_RDLKECCDATALOCAINJECT1", data_loca_inject1, lkecc_ctl_base(i));
 
             `uvm_info(get_full_name(), $sformatf("Read error injection configured: DbiInject2=%0b, DataInject2=%0b, DbiInject1=%0b, DataInject1=%0b",
                 dbi_inject2_en, data_inject2_en, dbi_inject1_en, data_inject1_en), UVM_LOW);
@@ -384,14 +427,14 @@ task apb_lkecc_seq::lkecc_get_status(
             `uvm_info(get_full_name(), $sformatf("read lkecc status for channel %0d", i), UVM_LOW);
 
             // Read correctable and uncorrectable error counters
-            get_field_by_apb("CTL_RDLKECCCORRCNT", rd_lkecc_corr_cnt, `DDR_CTL0_BASE_ADDR+i*'h0_0400);
-            get_field_by_apb("CTL_RDLKECCUNCORRCNT", rd_lkecc_uncorr_cnt, `DDR_CTL0_BASE_ADDR+i*'h0_0400);
+            get_field_by_apb("CTL_RDLKECCCORRCNT", rd_lkecc_corr_cnt, lkecc_ctl_base(i));
+            get_field_by_apb("CTL_RDLKECCUNCORRCNT", rd_lkecc_uncorr_cnt, lkecc_ctl_base(i));
             `uvm_info(get_full_name(), $sformatf("RdLkeccCorrCnt=%0d, RdLkeccUncorrCnt=%0d",
                 rd_lkecc_corr_cnt, rd_lkecc_uncorr_cnt), UVM_LOW);
 
             // Read interrupt status
-            get_field_by_apb("CTL_RDLKECCCORRINT", rd_lkecc_corr_int, `DDR_CTL0_BASE_ADDR+i*'h0_0400);
-            get_field_by_apb("CTL_RDLKECCUNCORRINT", rd_lkecc_uncorr_int, `DDR_CTL0_BASE_ADDR+i*'h0_0400);
+            get_field_by_apb("CTL_RDLKECCCORRINT", rd_lkecc_corr_int, lkecc_ctl_base(i));
+            get_field_by_apb("CTL_RDLKECCUNCORRINT", rd_lkecc_uncorr_int, lkecc_ctl_base(i));
             `uvm_info(get_full_name(), $sformatf("RdLkeccCorrInt=%0b, RdLkeccUncorrInt=%0b",
                 rd_lkecc_corr_int, rd_lkecc_uncorr_int), UVM_LOW);
         end
@@ -414,30 +457,30 @@ task apb_lkecc_seq::lkecc_clr_err(
 
             // Clear correctable counter
             if (clr_corr_cnt) begin
-                set_field_by_apb("CTL_RDLKECCCORRCNTCLR", 1'b1, `DDR_CTL0_BASE_ADDR+i*'h0_0400);
+                set_field_by_apb("CTL_RDLKECCCORRCNTCLR", 1'b1, lkecc_ctl_base(i));
                 `uvm_info(get_full_name(), "RdLkeccCorrCntClr written to clear correctable error counter", UVM_LOW);
-                set_field_by_apb("CTL_RDLKECCCORRCNTCLR", 1'b0, `DDR_CTL0_BASE_ADDR+i*'h0_0400);
+                set_field_by_apb("CTL_RDLKECCCORRCNTCLR", 1'b0, lkecc_ctl_base(i));
             end
 
             // Clear uncorrectable counter
             if (clr_uncorr_cnt) begin
-                set_field_by_apb("CTL_RDLKECCUNCORRCNTCLR", 1'b1, `DDR_CTL0_BASE_ADDR+i*'h0_0400);
+                set_field_by_apb("CTL_RDLKECCUNCORRCNTCLR", 1'b1, lkecc_ctl_base(i));
                 `uvm_info(get_full_name(), "RdLkeccUncorrCntClr written to clear uncorrectable error counter", UVM_LOW);
-                set_field_by_apb("CTL_RDLKECCUNCORRCNTCLR", 1'b0, `DDR_CTL0_BASE_ADDR+i*'h0_0400);
+                set_field_by_apb("CTL_RDLKECCUNCORRCNTCLR", 1'b0, lkecc_ctl_base(i));
             end
 
             // Clear correctable interrupt
             if (clr_corr_int) begin
-                set_field_by_apb("CTL_RDLKECCCORRINTCLR", 1'b1, `DDR_CTL0_BASE_ADDR+i*'h0_0400);
+                set_field_by_apb("CTL_RDLKECCCORRINTCLR", 1'b1, lkecc_ctl_base(i));
                 `uvm_info(get_full_name(), "RdLkeccCorrIntClr written to clear correctable interrupt", UVM_LOW);
-                set_field_by_apb("CTL_RDLKECCCORRINTCLR", 1'b0, `DDR_CTL0_BASE_ADDR+i*'h0_0400);
+                set_field_by_apb("CTL_RDLKECCCORRINTCLR", 1'b0, lkecc_ctl_base(i));
             end
 
             // Clear uncorrectable interrupt
             if (clr_uncorr_int) begin
-                set_field_by_apb("CTL_RDLKECCUNCORRINTCLR", 1'b1, `DDR_CTL0_BASE_ADDR+i*'h0_0400);
+                set_field_by_apb("CTL_RDLKECCUNCORRINTCLR", 1'b1, lkecc_ctl_base(i));
                 `uvm_info(get_full_name(), "RdLkeccUncorrIntClr written to clear uncorrectable interrupt", UVM_LOW);
-                set_field_by_apb("CTL_RDLKECCUNCORRINTCLR", 1'b0, `DDR_CTL0_BASE_ADDR+i*'h0_0400);
+                set_field_by_apb("CTL_RDLKECCUNCORRINTCLR", 1'b0, lkecc_ctl_base(i));
             end
         end
     end

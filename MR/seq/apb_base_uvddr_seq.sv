@@ -542,15 +542,18 @@ class apb_base_uvddr_seq extends apb_base_seq;
 
     task ppr_source_check(input bit[31:0] base_addr = `DDR_PHY_BASE_ADDR, bit[3:0] cs, bit[3:0] cid, bit[2:0] bg, output [79:0] ppr_src);
         bit [7:0] mr14;
-        mrr_handle(base_addr, cs, 14, mr14);
+        bit [63:0] mrr_data;
+        bit [15:0] mrr_ecc;
+        mrr_handle(base_addr, cs, 14, mrr_data, mrr_ecc);
+        mr14 = mrr_data[7:0];
         mr14[3:0] = cid;
         mrw_handle(base_addr, cs, 14, mr14);
 
         case(bg)
-            3'b000,3'b001: mrr_handle(base_addr, cs, 'd54, ppr_src);
-            3'b010,3'b011: mrr_handle(base_addr, cs, 'd55, ppr_src);
-            3'b100,3'b101: mrr_handle(base_addr, cs, 'd56, ppr_src);
-            3'b110,3'b111: mrr_handle(base_addr, cs, 'd57, ppr_src);
+            3'b000,3'b001: mrr_handle(base_addr, cs, 'd54, ppr_src[63:0], ppr_src[79:64]);
+            3'b010,3'b011: mrr_handle(base_addr, cs, 'd55, ppr_src[63:0], ppr_src[79:64]);
+            3'b100,3'b101: mrr_handle(base_addr, cs, 'd56, ppr_src[63:0], ppr_src[79:64]);
+            3'b110,3'b111: mrr_handle(base_addr, cs, 'd57, ppr_src[63:0], ppr_src[79:64]);
         endcase
 
         get_field_by_apb("CTL_MRRDAT0",    ppr_src[31:0], base_addr);
