@@ -37,7 +37,11 @@ class dmu_linkecc_rddatac_vseq extends dmu_base_vseq;
                    {lkecc_seq.mode    == 'h0;})
 
     // ch_sel = `SIMU_DMU_CH_SEL;
+    `ifdef MEM_ATTACHED_ddr5sdram
     ch_sel = 6'b001111;
+    `else
+    ch_sel = 6'b000101;
+    `endif
 
     repeat(1000) @(tb.clk_cfg);
 
@@ -61,6 +65,8 @@ class dmu_linkecc_rddatac_vseq extends dmu_base_vseq;
     end
 
 
+    `uvm_do_on_with(lkecc_seq,p_sequencer.apb_sqr_[0],
+                   {lkecc_seq.mode    == 'h10;})
     `uvm_do_on_with(lkecc_seq,p_sequencer.apb_sqr_[0],
                    {lkecc_seq.mode    == 'hB;})
     `uvm_do_on_with(lkecc_seq,p_sequencer.apb_sqr_[0],

@@ -21,7 +21,7 @@ class dmu_linkecc_wr_maskc_vseq extends dmu_base_vseq;
   bit [5:0]   ch_sel;
 
   apb_lkecc_seq lkecc_seq;
-  chi_full_wrard_seq chi_wrard;
+  chi_wr_seq chi_wr;
 
   function new(string name="dmu_linkecc_wr_maskc_vseq");
     super.new(name);
@@ -37,9 +37,16 @@ class dmu_linkecc_wr_maskc_vseq extends dmu_base_vseq;
                    {lkecc_seq.mode    == 'h0;})
 
     // ch_sel = `SIMU_DMU_CH_SEL;
+    `ifdef MEM_ATTACHED_ddr5sdram
     ch_sel = 6'b001111;
+    `else
+    ch_sel = 6'b000101;
+    `endif
 
     repeat(1000) @(tb.clk_cfg);
+
+    `uvm_do_on_with(lkecc_seq,p_sequencer.apb_sqr_[0],
+                   {lkecc_seq.mode    == 'hD;})
 
     for (int m = 0; m<128;m++) begin
       `uvm_do_on_with(lkecc_seq,p_sequencer.apb_sqr_[0],
@@ -50,9 +57,13 @@ class dmu_linkecc_wr_maskc_vseq extends dmu_base_vseq;
           automatic int k=i;
           if(ch_sel[k] == 1) begin
             `uvm_info(get_type_name(),$sformatf("Start ctl%d test !",k),UVM_MEDIUM);
-            `uvm_do_on_with(chi_wrard,p_sequencer.chi_vsqr.Down_seqr_ch_[k],
-            {chi_wrard.cnt == 1;
-            chi_wrard.chi_addr == ((k < 2) ? `DMU_NOC_BASE_ADDR : `DMU_NCC_BASE_ADDR) + 'h40*m;})
+            `uvm_do_on_with(chi_wr,p_sequencer.chi_vsqr.Down_seqr_ch_[k],
+            {chi_wr.cnt == 1;
+            chi_wr.chi_addr == ((k < 2) ? `DMU_NOC_BASE_ADDR : `DMU_NCC_BASE_ADDR) + 'h40*m;
+            chi_wr.chi_ns == 'b0;
+            chi_wr.chi_cancelOnRetryAck == 'b0;
+            chi_wr.chi_qos == 'hf;
+            chi_wr.chi_rsvdc == 'h0;})
           end
         join_none
       end
@@ -60,6 +71,8 @@ class dmu_linkecc_wr_maskc_vseq extends dmu_base_vseq;
       repeat(400) @(tb.clk_cfg);
     end
 
+    `uvm_do_on_with(lkecc_seq,p_sequencer.apb_sqr_[0],
+                   {lkecc_seq.mode    == 'hE;})
 
     `uvm_do_on_with(lkecc_seq,p_sequencer.apb_sqr_[0],
                    {lkecc_seq.mode    == 'hB;})

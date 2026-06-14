@@ -96,17 +96,6 @@ class apb_lkecc_seq extends apb_base_uvddr_seq;
         ctl_phy_field_parser();
         // ch_sel = `SIMU_DMU_CH_SEL;
         ch_sel = 6'b000011;
-        // for (int i=0; i<2; i++) begin
-        //    if (ch_sel[i]==1) begin
-        //        for(int j=0;j<`RANK_NUM;j++) begin
-        //            for(int k=0;k<32/`DRAM_WIDTH;k++) begin
-        //                $mmsomaset($sformatf("tb.lpddr5_ch%0d.rank[%1d].mdat[%0d].comp", i, j, k), "correctSingleBitError", 1);
-        //                lpddr5_dram_changeSeverity($sformatf("tb.lpddr5_ch%0d.rank[%1d].mdat[%0d].comp(cfg)", i, j, k),DENALI_LPDDR5_WRITE_LINK_ECC_DATA_SBE,DENALI_LPDDR5_ERR_CONFIG_SEVERITY_Info);
-        //                lpddr5_dram_changeSeverity($sformatf("tb.lpddr5_ch%0d.rank[%1d].mdat[%0d].comp(cfg)", i, j, k),DENALI_LPDDR5_WRITE_INVALID_DMI,DENALI_LPDDR5_ERR_CONFIG_SEVERITY_Info);
-        //            end
-        //        end
-        //    end
-        // end
 
         if(mode=='h0) begin
             lkecc_cfg();
@@ -201,6 +190,16 @@ class apb_lkecc_seq extends apb_base_uvddr_seq;
 
         end else if (mode=='hC) begin
             lkecc_clr_err(1'b1, 1'b1, 1'b1, 1'b1);
+        end else if (mode=='hD) begin
+            lkecc_dram_status_clear();
+        end else if (mode=='hE) begin
+            lkecc_check_dram_wr_status(1'b0);
+        end else if (mode=='hF) begin
+            lkecc_check_dram_wr_status(1'b1);
+        end else if (mode=='h10) begin
+            lkecc_check_ctrl_rd_status(1'b0);
+        end else if (mode=='h11) begin
+            lkecc_check_ctrl_rd_status(1'b1);
         end
 
         if(starting_phase) starting_phase.drop_objection(this);
@@ -209,6 +208,10 @@ class apb_lkecc_seq extends apb_base_uvddr_seq;
 
     extern virtual task lkecc_cfg();
     extern virtual task lkecc_mr22_cfg(input bit [31:0] base_addr);
+    extern virtual task lkecc_lpddr5_model_cfg();
+    extern virtual task lkecc_dram_status_clear();
+    extern virtual task lkecc_check_dram_wr_status(input bit expect_uncorr);
+    extern virtual task lkecc_check_ctrl_rd_status(input bit expect_uncorr);
 
     // Write error injection tasks
     extern virtual task lkecc_wr_err_inj(
@@ -258,37 +261,56 @@ class apb_lkecc_seq extends apb_base_uvddr_seq;
 
 endclass : apb_lkecc_seq
 
+task apb_lkecc_seq::lkecc_lpddr5_model_cfg();
+    integer result;
+    string  soma_path;
+
+    `uvm_info(get_full_name(), "enable LPDDR5 model correctSingleBitError for Link ECC", UVM_NONE);
+
+    for (int ch_idx=0; ch_idx<2; ch_idx++) begin
+        if (ch_sel[ch_idx]==1'b1) begin
+            for (int rank_idx=0; rank_idx<`RANK_NUM; rank_idx++) begin
+                for (int mdat_idx=0; mdat_idx<32/`DRAM_WIDTH; mdat_idx++) begin
+                    soma_path = $sformatf("tb.u_dc.lpddr5.ch%0d.rank[%0d].mdat[%0d].comp",
+                                          ch_idx, rank_idx, mdat_idx);
+                    result = $mmsomaset(soma_path, "correctSingleBitError", 1);
+                    `uvm_info(get_full_name(),
+                              $sformatf("mmsomaset %s correctSingleBitError=1 result=%0d",
+                                        soma_path, result),
+                              UVM_NONE);
+                end
+            end
+        end
+    end
+endtask : lkecc_lpddr5_model_cfg
+
 task apb_lkecc_seq::lkecc_cfg();
     `uvm_info(get_full_name(), "start lkecc_cfg...", UVM_LOW);
 
+    lkecc_lpddr5_model_cfg();
+
     for (int i=0; i<2; i++) begin
         if(ch_sel[i]==1) begin
-
-            for (int j=0;j<`RANK_NUM;j++) begin
-               for(int k=0;k<32/`DRAM_WIDTH;k++) begin
-                   // $mmsomaset($sformatf("tb.lpddr5_ch%0d.rank[%1d].mdat[%0d].comp", i, j, k), "correctSingleBitError", 1);
-                   // lpddr5_dram_changeSeverity($sformatf("tb.lpddr5_ch%0d.rank[%1d].mdat[%0d].comp(cfg)", i, j, k),DENALI_LPDDR5_WRITE_LINK_ECC_DATA_SBE,DENALI_LPDDR5_ERR_CONFIG_SEVERITY_Info);
-                   // lpddr5_dram_changeSeverity($sformatf("tb.lpddr5_ch%0d.rank[%1d].mdat[%0d].comp(cfg)", i, j, k),DENALI_LPDDR5_WRITE_LINK_ECC_DATA_DBE,DENALI_LPDDR5_ERR_CONFIG_SEVERITY_Info);
-                   // lpddr5_dram_changeSeverity($sformatf("tb.lpddr5_ch%0d.rank[%1d].mdat[%0d].comp(cfg)", i, j, k),DENALI_LPDDR5_WRITE_INVALID_DMI,DENALI_LPDDR5_ERR_CONFIG_SEVERITY_Info);
-               end
-            end
-
             `uvm_info(get_full_name(), $sformatf("start lkecc_cfg for channel %0d", i), UVM_LOW);
 
             // Step 1: Enable DRAM-side write/read link ECC through MR22.
             lkecc_mr22_cfg(lkecc_ctl_base(i));
 
-            // Step 2: Enable LK ECC for read and write in controller CSR.
+            // Step 2: Read Link ECC is mutually exclusive with Read DBI.
+            set_field_by_apb("CTL_CTLRDDBIEN", 1'b0, lkecc_ctl_base(i));
+            set_field_by_apb("CTL_CTLWRDBIEN", 2'b00, lkecc_ctl_base(i));
+
+            // Step 3: Enable LK ECC for read and write in controller CSR.
             set_field_by_apb("CTL_RDLKECCENABLE", 1'b1, lkecc_ctl_base(i));
             set_field_by_apb("CTL_WRLKECCENABLE", 1'b1, lkecc_ctl_base(i));
             `uvm_info(get_full_name(), "LK ECC enabled for read and write", UVM_LOW);
 
-            // Step 3: Enable error counters.
+            // Step 4: Enable error counters.
             set_field_by_apb("CTL_RDLKECCUNCORRCNTEN", 1'b1, lkecc_ctl_base(i));
             set_field_by_apb("CTL_RDLKECCCORRCNTEN", 1'b1, lkecc_ctl_base(i));
             `uvm_info(get_full_name(), "LK ECC error counters enabled", UVM_LOW);
 
-            // Step 4: Enable interrupts.
+            // Step 5: Enable interrupts.
             set_field_by_apb("CTL_RDLKECCUNCORRINTEN", 1'b1, lkecc_ctl_base(i));
             set_field_by_apb("CTL_RDLKECCCORRINTEN", 1'b1, lkecc_ctl_base(i));
             `uvm_info(get_full_name(), "LK ECC interrupts enabled", UVM_LOW);
@@ -309,6 +331,132 @@ task apb_lkecc_seq::lkecc_mr22_cfg(input bit [31:0] base_addr);
         repeat(20) @(posedge tb.clk_cfg);
     end
 endtask : lkecc_mr22_cfg
+
+task apb_lkecc_seq::lkecc_dram_status_clear();
+    bit [63:0] mrdat;
+    bit [15:0] mrdatecc;
+    bit [3:0]  mr_rank;
+
+    `uvm_info(get_full_name(), "clear DRAM-side Link ECC write status through MR43 read", UVM_LOW);
+
+    for (int i=0; i<2; i++) begin
+        if(ch_sel[i]==1) begin
+            for(int rank_idx = 0; rank_idx < `RANK_NUM; rank_idx++) begin
+                mr_rank = 4'b0001 << rank_idx;
+                mrr_flow(43, mr_rank, mrdat, lkecc_ctl_base(i), mrdatecc);
+                `uvm_info(get_full_name(), $sformatf("MR43 clear read: ch=%0d rank=%0d mr43=0x%0h",
+                    i, rank_idx, mrdat[7:0]), UVM_LOW);
+                repeat(20) @(posedge tb.clk_cfg);
+            end
+        end
+    end
+endtask : lkecc_dram_status_clear
+
+task apb_lkecc_seq::lkecc_check_dram_wr_status(input bit expect_uncorr);
+    bit [63:0] mrdat;
+    bit [15:0] mrdatecc;
+    bit [7:0]  mr43;
+    bit [7:0]  mr44;
+    bit [7:0]  mr45;
+    bit [3:0]  mr_rank;
+    bit [31:0] total_sbe_cnt;
+    bit        any_dbe_flag;
+
+    total_sbe_cnt = '0;
+    any_dbe_flag  = 1'b0;
+
+    `uvm_info(get_full_name(), "check DRAM-side Link ECC write status through MR43/MR44/MR45", UVM_LOW);
+
+    for (int i=0; i<2; i++) begin
+        if(ch_sel[i]==1) begin
+            for(int rank_idx = 0; rank_idx < `RANK_NUM; rank_idx++) begin
+                mr_rank = 4'b0001 << rank_idx;
+
+                mrr_flow(43, mr_rank, mrdat, lkecc_ctl_base(i), mrdatecc);
+                mr43 = mrdat[7:0];
+                repeat(20) @(posedge tb.clk_cfg);
+
+                mrr_flow(44, mr_rank, mrdat, lkecc_ctl_base(i), mrdatecc);
+                mr44 = mrdat[7:0];
+                repeat(20) @(posedge tb.clk_cfg);
+
+                mrr_flow(45, mr_rank, mrdat, lkecc_ctl_base(i), mrdatecc);
+                mr45 = mrdat[7:0];
+                repeat(20) @(posedge tb.clk_cfg);
+
+                total_sbe_cnt += mr43[5:0];
+                any_dbe_flag  |= mr43[7];
+
+                `uvm_info(get_full_name(), $sformatf(
+                    "DRAM Link ECC status: ch=%0d rank=%0d MR43=0x%0h MR44=0x%0h MR45=0x%0h sbe_cnt=%0d sbec_rule=%0b dbe=%0b data_syn=0x%0h err_lane=%0b dmi_syn=0x%0h",
+                    i, rank_idx, mr43, mr44, mr45, mr43[5:0], mr43[6], mr43[7],
+                    {mr45[7], mr44}, mr45[6], mr45[5:0]), UVM_LOW);
+            end
+        end
+    end
+
+    if (expect_uncorr) begin
+        if (!any_dbe_flag) begin
+            `uvm_error(get_full_name(), "Expected DRAM-side Link ECC DBE flag, but MR43 DBE flag was not observed");
+        end
+    end else begin
+        if (total_sbe_cnt == 0) begin
+            `uvm_error(get_full_name(), "Expected DRAM-side Link ECC SBE count, but MR43 SBE count stayed zero");
+        end
+        if (any_dbe_flag) begin
+            `uvm_error(get_full_name(), "Expected only correctable write Link ECC error, but MR43 DBE flag was observed");
+        end
+    end
+endtask : lkecc_check_dram_wr_status
+
+task apb_lkecc_seq::lkecc_check_ctrl_rd_status(input bit expect_uncorr);
+    bit [31:0] corr_cnt;
+    bit [31:0] uncorr_cnt;
+    bit        corr_int;
+    bit        uncorr_int;
+    bit [31:0] total_corr_cnt;
+    bit [31:0] total_uncorr_cnt;
+    bit        any_corr_int;
+    bit        any_uncorr_int;
+
+    total_corr_cnt   = '0;
+    total_uncorr_cnt = '0;
+    any_corr_int     = 1'b0;
+    any_uncorr_int   = 1'b0;
+
+    `uvm_info(get_full_name(), "check controller-side read Link ECC status", UVM_LOW);
+
+    for (int i=0; i<2; i++) begin
+        if(ch_sel[i]==1) begin
+            get_field_by_apb("CTL_RDLKECCCORRCNT", corr_cnt, lkecc_ctl_base(i));
+            get_field_by_apb("CTL_RDLKECCUNCORRCNT", uncorr_cnt, lkecc_ctl_base(i));
+            get_field_by_apb("CTL_RDLKECCCORRINT", corr_int, lkecc_ctl_base(i));
+            get_field_by_apb("CTL_RDLKECCUNCORRINT", uncorr_int, lkecc_ctl_base(i));
+
+            total_corr_cnt   += corr_cnt;
+            total_uncorr_cnt += uncorr_cnt;
+            any_corr_int     |= corr_int;
+            any_uncorr_int   |= uncorr_int;
+
+            `uvm_info(get_full_name(), $sformatf(
+                "Read Link ECC status: ch=%0d corr_cnt=%0d uncorr_cnt=%0d corr_int=%0b uncorr_int=%0b",
+                i, corr_cnt, uncorr_cnt, corr_int, uncorr_int), UVM_LOW);
+        end
+    end
+
+    if (expect_uncorr) begin
+        if ((total_uncorr_cnt == 0) && !any_uncorr_int) begin
+            `uvm_error(get_full_name(), "Expected read Link ECC uncorrectable status, but no uncorrectable counter or interrupt was observed");
+        end
+    end else begin
+        if ((total_corr_cnt == 0) && !any_corr_int) begin
+            `uvm_error(get_full_name(), "Expected read Link ECC correctable status, but no correctable counter or interrupt was observed");
+        end
+        if ((total_uncorr_cnt != 0) || any_uncorr_int) begin
+            `uvm_error(get_full_name(), "Expected only read Link ECC correctable status, but uncorrectable status was observed");
+        end
+    end
+endtask : lkecc_check_ctrl_rd_status
 
 task apb_lkecc_seq::lkecc_wr_err_inj(
     input bit        mask_inject2_en,  // WrLkeccMaskInject2
