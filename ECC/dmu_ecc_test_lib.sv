@@ -28,4 +28,5 @@
 `UVM_TESTCASE(dmu_linkecc_wr_maskc_tc,      dmu_linkecc_wr_maskc_vseq,      apb_init_tj_seq)
 `UVM_TESTCASE(dmu_linkecc_wr_masku_tc,      dmu_linkecc_wr_masku_vseq,      apb_init_tj_seq)
 `UVM_TESTCASE(dmu_linkecc_wrc_tc,           dmu_linkecc_wrc_vseq,           apb_init_tj_seq)
+`UVM_TESTCASE(dmu_linkecc_smoke_tc,         dmu_linkecc_smoke_vseq,         apb_init_tj_seq)
 `UVM_TESTCASE(dmu_linkecc_tc,               dmu_linkecc_vseq,               apb_init_tj_seq)

@@ -25,7 +25,9 @@ class apb_inline_ecc_seq extends apb_base_uvddr_seq;
     rand bit [5:0] sel_loc1;
     rand bit [5:0] sel_loc2;
 
-    // Constraint to ensure sel_loc1 and sel_loc2 are different
+    constraint default_ch_sel_c {
+        soft ch_sel == 6'b000011;
+    }
     
     function new(string name = "apb_inline_ecc_seq");
         super.new(name);
@@ -51,7 +53,6 @@ class apb_inline_ecc_seq extends apb_base_uvddr_seq;
         ctl_phy_reg_parser();
         ctl_phy_field_parser();
         // ch_sel = `SIMU_DMU_CH_SEL;
-        ch_sel = 6'b000011;
         if(mode=='h0) begin
             inline_ecc_cfg();
         end else if (mode=='h1) begin
@@ -83,6 +84,10 @@ class apb_inline_ecc_seq extends apb_base_uvddr_seq;
             int        iecc_uc_syndrom_datah;
             int        iecc_uc_syndrom_datal;
             int        iecc_uc_syndrom_code;
+            bit        rd_ecc_c_err_before;
+            bit        rd_ecc_uc_err_before;
+            int        iecc_c_err_cnt_before;
+            int        iecc_uc_err_cnt_before;
 
             // Step 1: Read error status
             `uvm_info(get_full_name(), "Step 1: Reading ECC error status...", UVM_LOW);
@@ -95,6 +100,15 @@ class apb_inline_ecc_seq extends apb_base_uvddr_seq;
                 iecc_uc_cs, iecc_uc_ba, iecc_uc_col, iecc_uc_row,
                 iecc_uc_syndrom_datah, iecc_uc_syndrom_datal, iecc_uc_syndrom_code
             );
+            rd_ecc_c_err_before     = rd_ecc_c_err;
+            rd_ecc_uc_err_before    = rd_ecc_uc_err;
+            iecc_c_err_cnt_before   = iecc_c_err_cnt;
+            iecc_uc_err_cnt_before  = iecc_uc_err_cnt;
+
+            if (rd_ecc_c_err_before == 1'b0 && rd_ecc_uc_err_before == 1'b0 &&
+                iecc_c_err_cnt_before == 0 && iecc_uc_err_cnt_before == 0) begin
+                `uvm_error(get_full_name(), "INLINE ECC STATUS CHECK FAILED: no correctable or uncorrectable error was observed before clear");
+            end
 
             // Step 2: Clear errors (both correctable and uncorrectable)
             `uvm_info(get_full_name(), "Step 2: Clearing ECC errors...", UVM_LOW);
@@ -133,13 +147,24 @@ class apb_inline_ecc_seq extends apb_base_uvddr_seq;
         end else if (mode=='h8) begin
             integer id;
             integer success;
+            string  model_path;
 
             for(int ch_idx = 0; ch_idx < 2; ch_idx++) begin
                 for(int rank_idx = 0; rank_idx < `RANK_NUM; rank_idx++) begin
                     for(int mdat_idx = 0; mdat_idx < 32/`DRAM_WIDTH; mdat_idx++) begin
-                        id = $mminstanceid($sformatf("tb.u_dc.lpddr5_ch%0d.rank[%0d].mdat[%0d].comp",
-                                                     ch_idx, rank_idx, mdat_idx));
+                        model_path = $sformatf("tb.u_dc.lpddr5.ch%0d.rank[%0d].mdat[%0d].comp",
+                                               ch_idx, rank_idx, mdat_idx);
+                        id = $mminstanceid(model_path);
+                        if(id == 0) begin
+                            model_path = $sformatf("tb.u_dc.lpddr5_ch%0d.rank[%0d].mdat[%0d].comp",
+                                                   ch_idx, rank_idx, mdat_idx);
+                            id = $mminstanceid(model_path);
+                        end
                         success = $mmerrinject(id, "-seed 0 -reads 1 -bits 1 2 -percentage 80 15");
+                        `uvm_info(get_full_name(),
+                                  $sformatf("inline ECC model inject path=%s id=%0d result=%0d",
+                                            model_path, id, success),
+                                  UVM_LOW);
                     end
                 end
             end
@@ -232,7 +257,7 @@ task apb_inline_ecc_seq::inline_ecc_cfg();
             set_field_by_apb("CTL_BA1POS",    6, inline_ecc_ctl_base(i));
             set_field_by_apb("CTL_BA2POS",    3, inline_ecc_ctl_base(i));
             set_field_by_apb("CTL_BA3POS",    4, inline_ecc_ctl_base(i));
-            set_field_by_apb("CTL_CSPOS",    28, inline_ecc_ctl_base(i));
+            // set_field_by_apb("CTL_CSPOS",    28, inline_ecc_ctl_base(i));
 
             // Step 1: Set WrEccCredit (range: 1 to WR ECC CAM depth)
             // User-defined value: set this according to the actual WR ECC CAM depth.
@@ -288,7 +313,7 @@ task apb_inline_ecc_seq::inline_ecc_wr_data_err_inj(
             `uvm_info(get_full_name(), $sformatf("Set IEccWrDataErrInjLoc2 = %0d", loc2), UVM_LOW);
 
             // Step 4: Set IEccWrDataErrInjAddr0 - DRAM address {cs,cid,ba,row,col}
-            set_field_by_apb("CTL_IECCWRDATAERRINJADDR", addr0, inline_ecc_ctl_base(i));
+            set_field_by_apb("CTL_IECCWRDATAERRINJADDRL", addr0, inline_ecc_ctl_base(i));
             `uvm_info(get_full_name(), $sformatf("Set IEccWrDataErrInjAddr = 0x%08h", addr0), UVM_LOW);
 
             // Step 5: Set IEccWrDataErrInjEn - 2'b01 for double-bit error, 2'b11 for single-bit error
@@ -332,7 +357,7 @@ task apb_inline_ecc_seq::inline_ecc_rd_data_err_inj(
             `uvm_info(get_full_name(), $sformatf("Set IEccRdDataErrInjLoc2 = %0d", loc2), UVM_LOW);
 
             // Step 4: Set IEccRdDataErrInjAddr - DRAM address {cs,cid,ba,row,col}
-            set_field_by_apb("CTL_IECCRDDATAERRINJADDR", addr0, inline_ecc_ctl_base(i));
+            set_field_by_apb("CTL_IECCRDDATAERRINJADDRL", addr0, inline_ecc_ctl_base(i));
             `uvm_info(get_full_name(), $sformatf("Set IEccRdDataErrInjAddr = 0x%08h", addr0), UVM_LOW);
 
             // Step 5: Set IEccRdDataErrInjEn - 2'b00=disable, 2'b01=double-bit, 2'b10=single-bit, 2'b11=single-bit
@@ -370,23 +395,53 @@ task apb_inline_ecc_seq::inline_ecc_get_status(
     output int        iecc_uc_row,     // IEccUcRow: uncorrectable error row
     output int        iecc_uc_syndrom_datah, // IEccUcSyndromDatah: uncorrectable error syndrome data high
     output int        iecc_uc_syndrom_datal, // IEccUcSyndromDatal: uncorrectable error syndrome data low
-    output int        iecc_uc_syndrom_code   // IEccUcSyndromCode: uncorrectable error syndrome code
+        output int        iecc_uc_syndrom_code   // IEccUcSyndromCode: uncorrectable error syndrome code
 );
+    bit ch_rd_ecc_c_err;
+    bit ch_rd_ecc_uc_err;
+    int ch_iecc_c_err_cnt;
+    int ch_iecc_uc_err_cnt;
+
     `uvm_info(get_full_name(), "start inline_ecc_get_status...", UVM_LOW);
+
+    rd_ecc_c_err           = '0;
+    rd_ecc_uc_err          = '0;
+    iecc_c_err_cnt         = '0;
+    iecc_uc_err_cnt        = '0;
+    iecc_c_cs              = '0;
+    iecc_c_ba              = '0;
+    iecc_c_col             = '0;
+    iecc_c_row             = '0;
+    iecc_c_syndrom_datah   = '0;
+    iecc_c_syndrom_datal   = '0;
+    iecc_c_syndrom_code    = '0;
+    iecc_c_maskh           = '0;
+    iecc_c_maskl           = '0;
+    iecc_uc_cs             = '0;
+    iecc_uc_ba             = '0;
+    iecc_uc_col            = '0;
+    iecc_uc_row            = '0;
+    iecc_uc_syndrom_datah  = '0;
+    iecc_uc_syndrom_datal  = '0;
+    iecc_uc_syndrom_code   = '0;
 
     for (int i=0; i<2; i++) begin
         if(ch_sel[i]==1) begin
             `uvm_info(get_full_name(), $sformatf("read inline_ecc status for channel %0d", i), UVM_LOW);
 
             // Read correctable/uncorrectable error flags
-            get_field_by_apb("CTL_RDECCCERR", rd_ecc_c_err, inline_ecc_ctl_base(i));
-            get_field_by_apb("CTL_RDECCUCERR", rd_ecc_uc_err, inline_ecc_ctl_base(i));
+            get_field_by_apb("CTL_RDECCCERR", ch_rd_ecc_c_err, inline_ecc_ctl_base(i));
+            get_field_by_apb("CTL_RDECCUCERR", ch_rd_ecc_uc_err, inline_ecc_ctl_base(i));
+            rd_ecc_c_err  |= ch_rd_ecc_c_err;
+            rd_ecc_uc_err |= ch_rd_ecc_uc_err;
             `uvm_info(get_full_name(), $sformatf("RdEccCErr=%0b, RdEccUcErr=%0b", rd_ecc_c_err, rd_ecc_uc_err), UVM_LOW);
 
             // Read error counts
-            get_field_by_apb("CTL_IECCCERRCNT", iecc_c_err_cnt, inline_ecc_ctl_base(i));
-            get_field_by_apb("CTL_IECCUCERRCNT", iecc_uc_err_cnt, inline_ecc_ctl_base(i));
-            `uvm_info(get_full_name(), $sformatf("IEccCErrCnt=%0d, IEccUcErrCnt=%0d", iecc_c_err_cnt, iecc_uc_err_cnt), UVM_LOW);
+            get_field_by_apb("CTL_HOSTIECCCERRCNT", ch_iecc_c_err_cnt, inline_ecc_ctl_base(i));
+            get_field_by_apb("CTL_HOSTIECCUCERRCNT", ch_iecc_uc_err_cnt, inline_ecc_ctl_base(i));
+            iecc_c_err_cnt  += ch_iecc_c_err_cnt;
+            iecc_uc_err_cnt += ch_iecc_uc_err_cnt;
+            `uvm_info(get_full_name(), $sformatf("IEccCErrCnt=%0d, IEccUcErrCnt=%0d", ch_iecc_c_err_cnt, ch_iecc_uc_err_cnt), UVM_LOW);
 
             // Read correctable error address and syndrome info
             get_field_by_apb("CTL_IECCCCS", iecc_c_cs, inline_ecc_ctl_base(i));

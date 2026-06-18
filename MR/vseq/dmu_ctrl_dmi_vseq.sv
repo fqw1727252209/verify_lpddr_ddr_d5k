@@ -49,13 +49,53 @@ class dmu_ctrl_dmi_vseq extends dmu_base_vseq;
   endfunction
 
   `ifdef SIMU_DMU_APB_FTVIP
-    apb_ctrl_mr_seq            apb_ctrl_mr_seq;
+    apb_ctrl_dmi_seq       apb_ctrl_dmi_seq;
   `endif
 
   chi_base_rand_seq        base_rand_chi_seq;
   chi_full_wrard_seq       full_wrard_chi_seq;
   dmu_dmi_ptl_wrard_seq    dmi_ptl_wrard_seq;
   int                      in_cnt = 200;
+  int                      dmi_scene = 0;
+
+  function automatic string dmi_scene_name(input int scene);
+    case(scene)
+      1: return "DM=ON, DBI=OFF";
+      2: return "DM=OFF, DBI=ON";
+      3: return "DM=ON, DBI=ON";
+      default: return "UNKNOWN";
+    endcase
+  endfunction
+
+  function automatic int dmi_scene_from_testname(input string test_name);
+    if(test_name == "dmu_ctrl_dmi_dm_on_dbi_off_tc") begin
+      return 1;
+    end else if(test_name == "dmu_ctrl_dmi_dm_off_dbi_on_tc") begin
+      return 2;
+    end else if(test_name == "dmu_ctrl_dmi_dm_on_dbi_on_tc") begin
+      return 3;
+    end else begin
+      return 0;
+    end
+  endfunction
+
+  function automatic int resolve_dmi_scene();
+    string test_name;
+    int scene;
+
+    if($value$plusargs("DMI_SCENE=%0d", scene)) begin
+      return scene;
+    end
+
+    if($value$plusargs("UVM_TESTNAME=%s", test_name)) begin
+      scene = dmi_scene_from_testname(test_name);
+      if(scene != 0) begin
+        return scene;
+      end
+    end
+
+    return 0;
+  endfunction
 
   function automatic bit [63:0] dmi_be_pattern(input int pattern_idx);
     case(pattern_idx)
@@ -111,37 +151,38 @@ class dmu_ctrl_dmi_vseq extends dmu_base_vseq;
         })
       end
 
-      for(int be_idx = 0; be_idx < 4; be_idx++) begin
-        bit [`TB_DATA_WIDTH-1:0] wr_data;
-        bit [63:0]              wr_be;
+      if(scene != 2) begin
+        for(int be_idx = 0; be_idx < 4; be_idx++) begin
+          bit [`TB_DATA_WIDTH-1:0] wr_data;
+          bit [63:0]              wr_be;
 
-        ptl_addr = base_addr + 'h200 + (be_idx * 'h40);
-        wr_data = dmi_data_pattern(scene, port, be_idx);
-        wr_be   = dmi_be_pattern(be_idx);
-        `uvm_do_on_with(dmi_ptl_wrard_seq, p_sequencer.chi_vsqr.Down_seqr_ch_[port], {
-          dmi_ptl_wrard_seq.chi_addr             == ptl_addr;
-          dmi_ptl_wrard_seq.chi_wrdata           == wr_data;
-          dmi_ptl_wrard_seq.chi_wrdata_be        == wr_be;
-          dmi_ptl_wrard_seq.chi_ns               == 0;
-          dmi_ptl_wrard_seq.chi_cancelOnRetryAck == 0;
-          dmi_ptl_wrard_seq.chi_order            == 0;
-          dmi_ptl_wrard_seq.chi_qos              == 'hf;
-          dmi_ptl_wrard_seq.chi_txnid            == (scene * 16 + port * 4 + be_idx) % 256;
-          dmi_ptl_wrard_seq.chi_returnTxnid      == (scene * 16 + port * 4 + be_idx) % 256;
-          dmi_ptl_wrard_seq.chi_rsvdc            == 0;
-          dmi_ptl_wrard_seq.chi_size             == DENALI_CHI_SIZE_FULLLINE;
-        })
+          ptl_addr = base_addr + 'h200 + (be_idx * 'h40);
+          wr_data = dmi_data_pattern(scene, port, be_idx);
+          wr_be   = dmi_be_pattern(be_idx);
+          `uvm_do_on_with(dmi_ptl_wrard_seq, p_sequencer.chi_vsqr.Down_seqr_ch_[port], {
+            dmi_ptl_wrard_seq.chi_addr             == ptl_addr;
+            dmi_ptl_wrard_seq.chi_wrdata           == wr_data;
+            dmi_ptl_wrard_seq.chi_wrdata_be        == wr_be;
+            dmi_ptl_wrard_seq.chi_ns               == 0;
+            dmi_ptl_wrard_seq.chi_cancelOnRetryAck == 0;
+            dmi_ptl_wrard_seq.chi_order            == 0;
+            dmi_ptl_wrard_seq.chi_qos              == 'hf;
+            dmi_ptl_wrard_seq.chi_txnid            == (scene * 16 + port * 4 + be_idx) % 256;
+            dmi_ptl_wrard_seq.chi_returnTxnid      == (scene * 16 + port * 4 + be_idx) % 256;
+            dmi_ptl_wrard_seq.chi_rsvdc            == 0;
+            dmi_ptl_wrard_seq.chi_size             == DENALI_CHI_SIZE_FULLLINE;
+          })
+        end
+      end else begin
+        `uvm_info(get_full_name(), "DMI scene2 skips partial/mask writes because DM is disabled", UVM_LOW);
       end
     end
 
     `uvm_info(get_full_name(), $sformatf("DMI scene%0d directed traffic done", scene), UVM_LOW);
   endtask
 
-  virtual task run_chi_traffic(input int scene);
-    `uvm_info(get_full_name(), $sformatf("DMI scene%0d CHI traffic start", scene), UVM_LOW);
-
-    run_directed_traffic(scene);
-
+  virtual task run_random_traffic(input int scene);
+    `uvm_info(get_full_name(), $sformatf("DMI scene%0d random CHI traffic start", scene), UVM_LOW);
     fork
       begin
         `uvm_do_on_with(base_rand_chi_seq, p_sequencer.chi_vsqr.Down_seqr_ch_[0], {
@@ -180,6 +221,19 @@ class dmu_ctrl_dmi_vseq extends dmu_base_vseq;
         })
       end
     join
+    `uvm_info(get_full_name(), $sformatf("DMI scene%0d random CHI traffic done", scene), UVM_LOW);
+  endtask
+
+  virtual task run_chi_traffic(input int scene);
+    `uvm_info(get_full_name(), $sformatf("DMI scene%0d CHI traffic start", scene), UVM_LOW);
+
+    run_directed_traffic(scene);
+
+    if(scene == 2) begin
+      `uvm_info(get_full_name(), "DMI scene2 runs directed DBI read traffic only", UVM_LOW);
+    end else begin
+      run_random_traffic(scene);
+    end
 
     `uvm_info(get_full_name(), $sformatf("DMI scene%0d CHI traffic done", scene), UVM_LOW);
   endtask
@@ -192,15 +246,28 @@ class dmu_ctrl_dmi_vseq extends dmu_base_vseq;
     `uvm_info(get_full_name(), "Start ctrl DMI test...", UVM_LOW);
 
 `ifdef dram_lpddr5
-    for(int scene = 1; scene <= 3; scene++) begin
-      `uvm_info(get_full_name(), $sformatf("Configure DMI scene%0d", scene), UVM_LOW);
-      `uvm_do_on_with(apb_ctrl_mr_seq,p_sequencer.apb_sqr_[0],{
-        apb_ctrl_mr_seq.dmi_scene_only == 1;
-        apb_ctrl_mr_seq.dmi_scene      == scene;
-      });
-
-      run_chi_traffic(scene);
+    dmi_scene = resolve_dmi_scene();
+    if(!(dmi_scene inside {[0:3]})) begin
+      `uvm_fatal(get_full_name(), $sformatf("Unsupported DMI scene %0d. Valid values: 1(DM=ON DBI=OFF), 2(DM=OFF DBI=ON), 3(DM=ON DBI=ON).", dmi_scene))
     end
+
+    `uvm_do_on_with(apb_ctrl_dmi_seq, p_sequencer.apb_sqr_[0], {
+      apb_ctrl_dmi_seq.dmi_scene == local::dmi_scene;
+    })
+
+    if(dmi_scene == 0) begin
+      dmi_scene = apb_ctrl_dmi_seq.detected_scene;
+      if(dmi_scene == 0) begin
+        `uvm_fatal(get_full_name(), "Cannot infer DMI scene from init CSR state. Please set DBI/DM_EN to a supported combination or pass +DMI_SCENE=1/2/3.")
+      end
+      `uvm_info(get_full_name(), $sformatf("DMI scene inferred from init parameters: scene%0d (%s)",
+                                           dmi_scene, dmi_scene_name(dmi_scene)), UVM_LOW);
+    end
+
+    `uvm_info(get_full_name(), $sformatf("Run DMI scene%0d (%s). DBI/DM_EN must be set by init parameters before this vseq starts.",
+                                         dmi_scene, dmi_scene_name(dmi_scene)), UVM_LOW);
+
+    run_chi_traffic(dmi_scene);
 `else
     `uvm_error(get_full_name(), "dmu_ctrl_dmi_vseq is LPDDR5-only. Please compile with dram_lpddr5.")
 `endif

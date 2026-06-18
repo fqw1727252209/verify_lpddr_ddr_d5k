@@ -21,6 +21,7 @@ class dmu_linkecc_wr_datac_vseq extends dmu_base_vseq;
   bit [5:0]   ch_sel;
 
   apb_lkecc_seq lkecc_seq;
+  apb_ras_seq ras_apb_seq;
   chi_wr_seq chi_wr;
 
   function new(string name="dmu_linkecc_wr_datac_vseq");
@@ -59,7 +60,9 @@ class dmu_linkecc_wr_datac_vseq extends dmu_base_vseq;
             `uvm_info(get_type_name(),$sformatf("Start ctl%d test !",k),UVM_MEDIUM);
             `uvm_do_on_with(chi_wr,p_sequencer.chi_vsqr.Down_seqr_ch_[k],
             {chi_wr.cnt == 1;
-            chi_wr.chi_addr == ((k < 2) ? `DMU_NOC_BASE_ADDR : `DMU_NCC_BASE_ADDR) + 'h40*m;
+            chi_wr.chi_addr == ((k < 2) ? `DMU_NOC_BASE_ADDR : `DMU_NCC_BASE_ADDR) +
+                                (`TB_ADDR_WIDTH'h40 * m) +
+                                ((k % 2) * `TB_ADDR_WIDTH'h10000);
             chi_wr.chi_ns == 'b0;
             chi_wr.chi_cancelOnRetryAck == 'b0;
             chi_wr.chi_qos == 'hf;
@@ -83,5 +86,17 @@ class dmu_linkecc_wr_datac_vseq extends dmu_base_vseq;
 
     if(starting_phase) starting_phase.drop_objection(this);
   endtask : body
+
+  virtual task post_body();
+    bit sys_result;
+
+    if(starting_phase) starting_phase.raise_objection(this);
+    repeat(500) @(posedge tb.clk_noc);
+    `uvm_info(get_full_name(), "start post_body.", UVM_LOW)
+    `uvm_do_on_with(ras_apb_seq,p_sequencer.apb_sqr_[0],
+                    {ras_apb_seq.int_trig_mode == 1'b1;
+                     ras_apb_seq.int_select    == 'hc0;})
+    if(starting_phase) starting_phase.drop_objection(this);
+  endtask : post_body
 
 endclass

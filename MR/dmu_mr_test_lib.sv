@@ -12,3 +12,6 @@
 `UVM_TESTCASE(dmu_ctrl_mpc_tc,     dmu_ctrl_mpc_vseq,     apb_init_tj_seq)
 `UVM_TESTCASE(dmu_ctrl_mr_pda_tc,  dmu_ctrl_mr_pda_vseq,  apb_init_tj_seq)
 `UVM_TESTCASE(dmu_ctrl_dmi_tc,     dmu_ctrl_dmi_vseq,     apb_init_tj_seq)
+`UVM_TESTCASE(dmu_ctrl_dmi_dm_on_dbi_off_tc, dmu_ctrl_dmi_vseq, apb_init_tj_seq)
+`UVM_TESTCASE(dmu_ctrl_dmi_dm_off_dbi_on_tc, dmu_ctrl_dmi_vseq, apb_init_tj_seq)
+`UVM_TESTCASE(dmu_ctrl_dmi_dm_on_dbi_on_tc,  dmu_ctrl_dmi_vseq, apb_init_tj_seq)

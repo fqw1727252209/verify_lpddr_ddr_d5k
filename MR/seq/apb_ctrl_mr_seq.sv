@@ -22,15 +22,7 @@ class apb_ctrl_mr_seq extends apb_base_uvddr_seq;
   int ecc_en;
   int sbecc_en;
   int rsecc_en;
-  rand bit dmi_scene_only = 0;
-  rand int dmi_scene = 0;
   `uvm_object_utils(apb_ctrl_mr_seq)
-
-  constraint dmi_scene_c {
-    soft dmi_scene_only == 0;
-    soft dmi_scene == 0;
-    dmi_scene inside {[0:3]};
-  }
 
   function new(string name = "apb_ctrl_mr_seq");
     super.new(name);
@@ -78,25 +70,11 @@ class apb_ctrl_mr_seq extends apb_base_uvddr_seq;
         rdimm_rcd_test(`DDR_CTL1_BASE_ADDR);
 
       `elsif dram_lpddr5
-        if(dmi_scene_only) begin
-          lpddr5_dmi_scene_config(`DDR_CTL0_BASE_ADDR, dmi_scene);
-          `uvm_info(get_full_name(),$sformatf("finish lpddr5 ctrl0 DMI scene%0d config", dmi_scene), UVM_LOW);
+        lpddr5_mr_test(`DDR_CTL0_BASE_ADDR);
+        `uvm_info(get_full_name(),$sformatf("finish lpddr5 ctrl0 MR test"), UVM_LOW);
 
-          lpddr5_dmi_scene_config(`DDR_CTL1_BASE_ADDR, dmi_scene);
-          `uvm_info(get_full_name(),$sformatf("finish lpddr5 ctrl1 DMI scene%0d config", dmi_scene), UVM_LOW);
-        end else begin
-          lpddr5_mr_test(`DDR_CTL0_BASE_ADDR);
-          `uvm_info(get_full_name(),$sformatf("finish lpddr5 ctrl0 MR test"), UVM_LOW);
-
-          lpddr5_mr_test(`DDR_CTL1_BASE_ADDR);
-          `uvm_info(get_full_name(),$sformatf("finish lpddr5 ctrl1 MR test"), UVM_LOW);
-
-          lpddr5_dbi_dm_test(`DDR_CTL0_BASE_ADDR);
-          `uvm_info(get_full_name(),$sformatf("finish lpddr5 ctrl0 DBI/DM config test"), UVM_LOW);
-
-          lpddr5_dbi_dm_test(`DDR_CTL1_BASE_ADDR);
-          `uvm_info(get_full_name(),$sformatf("finish lpddr5 ctrl1 DBI/DM config test"), UVM_LOW);
-        end
+        lpddr5_mr_test(`DDR_CTL1_BASE_ADDR);
+        `uvm_info(get_full_name(),$sformatf("finish lpddr5 ctrl1 MR test"), UVM_LOW);
       `endif
 
     if(starting_phase) starting_phase.drop_objection(this);
@@ -104,8 +82,6 @@ class apb_ctrl_mr_seq extends apb_base_uvddr_seq;
   endtask
   extern virtual task mr_test(input bit[31:0]base_addr);
   extern virtual task lpddr5_mr_test(input bit[31:0]base_addr);
-  extern virtual task lpddr5_dmi_scene_config(input bit[31:0]base_addr, input int scene);
-  extern virtual task lpddr5_dbi_dm_test(input bit[31:0]base_addr);
   extern virtual task rdimm_rcd_test(input bit[31:0]base_addr);
 
 
@@ -286,99 +262,71 @@ task apb_ctrl_mr_seq::lpddr5_mr_test(input bit[31:0]base_addr);
 
 endtask
 
-// DBI/DM configuration task: program DRAM MR3/MR13 and controller DBI/DM CSRs.
-// This task only configures state. Data traffic is driven by the upper dedicated vseq.
-task apb_ctrl_mr_seq::lpddr5_dmi_scene_config(input bit[31:0]base_addr, input int scene);
-    bit [1:0] ctl_wrdbi_value;
-    bit       ctl_rddbi_value;
-    bit       ctl_dmdis_value;
-    bit [7:0] mr3_value;
-    bit [7:0] mr13_value;
-    bit [3:0] mr_rank;
+class apb_ctrl_dmi_seq extends apb_base_uvddr_seq;
 
-    case(scene)
-      1: begin
-        `uvm_info(get_full_name(), $sformatf("[DMI Scene 1] DM=ON, DBI=OFF, base_addr=0x%0h", base_addr), UVM_LOW);
-        ctl_wrdbi_value = 2'b00;
-        ctl_rddbi_value = 1'b0;
-        ctl_dmdis_value = 1'b0;
-        mr3_value       = 8'h04;      // MR3 OP[7:6]=00 (DBI OFF), PDDS=RZQ/4
-        mr13_value      = 8'h00;      // MR13 OP[5]=0 (DMD=0, DM Enabled)
-      end
-      2: begin
-        `uvm_info(get_full_name(), $sformatf("[DMI Scene 2] DBI=ON, DM=OFF, base_addr=0x%0h", base_addr), UVM_LOW);
-        ctl_wrdbi_value = 2'b01;
-        ctl_rddbi_value = 1'b1;
-        ctl_dmdis_value = 1'b1;
-        mr3_value       = 8'hC4;      // MR3 OP[7:6]=11 (DBI ON), PDDS=RZQ/4
-        mr13_value      = 8'h20;      // MR13 OP[5]=1 (DMD=1, DM Disabled)
-      end
-      3: begin
-        `uvm_info(get_full_name(), $sformatf("[DMI Scene 3] DBI=ON, DM=ON, base_addr=0x%0h", base_addr), UVM_LOW);
-        ctl_wrdbi_value = 2'b01;
-        ctl_rddbi_value = 1'b1;
-        ctl_dmdis_value = 1'b0;
-        mr3_value       = 8'hC4;      // MR3 OP[7:6]=11 (DBI ON), PDDS=RZQ/4
-        mr13_value      = 8'h00;      // MR13 OP[5]=0 (DMD=0, DM Enabled)
-      end
-      default: begin
-        `uvm_error(get_full_name(), $sformatf("Unsupported LPDDR5 DMI scene: %0d", scene));
-        return;
-      end
-    endcase
+  rand int dmi_scene = 0;
+  int      detected_scene = 0;
 
-    set_field_by_apb("CTL_CTLWRDBIEN", ctl_wrdbi_value, base_addr);
-    set_field_by_apb("CTL_CTLRDDBIEN", ctl_rddbi_value, base_addr);
+  `uvm_object_utils(apb_ctrl_dmi_seq)
 
-    for(int rank_idx = 0; rank_idx < `RANK_NUM; rank_idx++) begin
-        mr_rank = 4'b0001 << rank_idx;
-        mrw_flow(3, mr_rank, mr3_value, base_addr);
-        repeat(20) @(posedge tb.clk_cfg);
-        mrw_flow(13, mr_rank, mr13_value, base_addr);
-        repeat(20) @(posedge tb.clk_cfg);
-    end
+  constraint dmi_scene_c {
+    dmi_scene inside {[0:3]};
+  }
 
-    set_field_by_apb("CTL_DMDIS", ctl_dmdis_value, base_addr);
-    repeat(20) @(posedge tb.clk_cfg);
-endtask
+  function new(string name = "apb_ctrl_dmi_seq");
+    super.new(name);
+  endfunction
 
-task apb_ctrl_mr_seq::lpddr5_dbi_dm_test(input bit[31:0]base_addr);
-    // MR3 initial state: 0xC4 (write/read DBI enabled, PDDS=RZQ/4).
-    // MR13 initial state: 0x00 (DMD=0, DM enabled by default).
-    // Keep controller-side DBI/DM CSRs aligned with DRAM MR settings.
-    `uvm_info(get_full_name(),$sformatf("start lpddr5 DBI/DM config test, base_addr=0x%0h", base_addr), UVM_LOW);
+  virtual task body();
+    if(starting_phase) starting_phase.raise_objection(this);
 
-    // ---------------------------------------------------------
-    // Scene 1: enable DM and disable DBI.
-    // Disable controller-side DBI before programming MR3 to keep both sides aligned.
-    // ---------------------------------------------------------
-    lpddr5_dmi_scene_config(base_addr, 1);
-    `uvm_info(get_full_name(), "[DBI/DM Scene 1] done: DM=ON DBI=OFF configured", UVM_LOW);
+`ifdef dram_lpddr5
+    `uvm_info(get_full_name(), "start LPDDR5 DMI init-state check...", UVM_LOW);
+    repeat(5) @(posedge tb.clk_cfg);
+    ctl_phy_reg_parser();
+    ctl_phy_field_parser();
 
-    // ---------------------------------------------------------
-    // Scene 2: enable DBI and disable DM.
-    // ---------------------------------------------------------
-    lpddr5_dmi_scene_config(base_addr, 2);
-    `uvm_info(get_full_name(), "[DBI/DM Scene 2] done: DBI=ON DM=OFF configured", UVM_LOW);
+    check_dmi_scene(`DDR_CTL0_BASE_ADDR, dmi_scene);
+    check_dmi_scene(`DDR_CTL1_BASE_ADDR, dmi_scene);
 
-    // ---------------------------------------------------------
-    // Scene 3: enable both DBI and DM.
-    // ---------------------------------------------------------
-    lpddr5_dmi_scene_config(base_addr, 3);
-    `uvm_info(get_full_name(), "[DBI/DM Scene 3] done: DBI=ON DM=ON configured", UVM_LOW);
+    `uvm_info(get_full_name(), "finish LPDDR5 DMI init-state check...", UVM_LOW);
+`else
+    `uvm_error(get_full_name(), "apb_ctrl_dmi_seq is LPDDR5-only. Please compile with dram_lpddr5.")
+`endif
 
-    // ---------------------------------------------------------
-    // Restore to DBI ON and DM ON.
-    // ---------------------------------------------------------
-    `uvm_info(get_full_name(), "[DBI/DM Restore] restoring to DBI=ON, DM=ON", UVM_LOW);
-    // The DRAM side is already DBI=ON and DM=ON; confirm controller CSRs.
-    set_field_by_apb("CTL_CTLWRDBIEN", 1, base_addr);
-    set_field_by_apb("CTL_CTLRDDBIEN", 1, base_addr);
-    set_field_by_apb("CTL_DMDIS",      0, base_addr);
+    if(starting_phase) starting_phase.drop_objection(this);
+  endtask
 
-    `uvm_info(get_full_name(),$sformatf("finish lpddr5 DBI/DM config test, base_addr=0x%0h", base_addr), UVM_LOW);
+  extern virtual task check_dmi_scene(input bit[31:0] base_addr, input int scene);
+  extern virtual function int get_scene_from_csr(input bit [1:0] wrdbi,
+                                                 input bit       rddbi,
+                                                 input bit       dmdis);
+  extern virtual function string scene_name(input int scene);
 
-endtask
+endclass : apb_ctrl_dmi_seq
+
+function int apb_ctrl_dmi_seq::get_scene_from_csr(input bit [1:0] wrdbi,
+                                                  input bit       rddbi,
+                                                  input bit       dmdis);
+  if(wrdbi[0] == 1'b0 && rddbi == 1'b0 && dmdis == 1'b0) begin
+    return 1;
+  end else if(wrdbi[0] == 1'b1 && rddbi == 1'b1 && dmdis == 1'b1) begin
+    return 2;
+  end else if(wrdbi[0] == 1'b1 && rddbi == 1'b1 && dmdis == 1'b0) begin
+    return 3;
+  end else begin
+    return 0;
+  end
+endfunction
+
+function string apb_ctrl_dmi_seq::scene_name(input int scene);
+  case(scene)
+    1: return "DM=ON, DBI=OFF";
+    2: return "DM=OFF, DBI=ON";
+    3: return "DM=ON, DBI=ON";
+    default: return "UNKNOWN";
+  endcase
+endfunction
 
 task apb_ctrl_mr_seq::rdimm_rcd_test(input bit[31:0]base_addr);
     bit [31:0] csmask0;
@@ -412,6 +360,67 @@ task apb_ctrl_mr_seq::rdimm_rcd_test(input bit[31:0]base_addr);
     end
     
     `uvm_info(get_full_name(), $sformatf("finish ddr5 rdimm rcd test, base_addr=0x%0h", base_addr), UVM_LOW);
+endtask
+
+task apb_ctrl_dmi_seq::check_dmi_scene(input bit[31:0] base_addr, input int scene);
+  bit [31:0] wrdbi;
+  bit [31:0] rddbi;
+  bit [31:0] dmdis;
+  bit [63:0] mr3_dat;
+  bit [63:0] mr13_dat;
+  bit [15:0] mrdatecc;
+  int       actual_scene;
+  int       expected_scene;
+
+  get_field_by_apb("CTL_CTLWRDBIEN", wrdbi, base_addr);
+  get_field_by_apb("CTL_CTLRDDBIEN", rddbi, base_addr);
+  get_field_by_apb("CTL_DMDIS",      dmdis, base_addr);
+
+  actual_scene = get_scene_from_csr(wrdbi[1:0], rddbi[0], dmdis[0]);
+  if(detected_scene == 0) begin
+    detected_scene = actual_scene;
+  end else if(actual_scene != 0 && detected_scene != actual_scene) begin
+    `uvm_error(get_full_name(),
+               $sformatf("LPDDR5 DMI scene changed across channels: base_addr=0x%0h, first_scene%0d (%s), current_scene%0d (%s)",
+                         base_addr, detected_scene, scene_name(detected_scene), actual_scene, scene_name(actual_scene)));
+  end
+
+  mrr_flow(3, 4'b0001, mr3_dat, base_addr, mrdatecc);
+  mrr_flow(13, 4'b0001, mr13_dat, base_addr, mrdatecc);
+
+  `uvm_info(get_full_name(),
+            $sformatf("LPDDR5 DMI init state: base_addr=0x%0h, CTL_CTLWRDBIEN=0x%0h, CTL_CTLRDDBIEN=0x%0h, CTL_DMDIS=0x%0h, MR3[7:0]=0x%0h, MR13[7:0]=0x%0h, scene%0d (%s)",
+                      base_addr, wrdbi, rddbi, dmdis, mr3_dat[7:0], mr13_dat[7:0], actual_scene, scene_name(actual_scene)),
+            UVM_LOW);
+
+  expected_scene = (scene == 0) ? actual_scene : scene;
+
+  case(expected_scene)
+    1: begin
+      if(actual_scene != 1 || mr3_dat[7:6] != 2'b00 || mr13_dat[5] != 1'b0) begin
+        `uvm_error(get_full_name(),
+                   $sformatf("LPDDR5 DMI scene1 mismatch: base_addr=0x%0h, actual_scene=%0d, MR3[7:6]=0x%0h, MR13[5]=0x%0h",
+                             base_addr, actual_scene, mr3_dat[7:6], mr13_dat[5]));
+      end
+    end
+    2: begin
+      if(actual_scene != 2 || mr3_dat[7:6] != 2'b11 || mr13_dat[5] != 1'b1) begin
+        `uvm_error(get_full_name(),
+                   $sformatf("LPDDR5 DMI scene2 mismatch: base_addr=0x%0h, actual_scene=%0d, MR3[7:6]=0x%0h, MR13[5]=0x%0h",
+                             base_addr, actual_scene, mr3_dat[7:6], mr13_dat[5]));
+      end
+    end
+    3: begin
+      if(actual_scene != 3 || mr3_dat[7:6] != 2'b11 || mr13_dat[5] != 1'b0) begin
+        `uvm_error(get_full_name(),
+                   $sformatf("LPDDR5 DMI scene3 mismatch: base_addr=0x%0h, actual_scene=%0d, MR3[7:6]=0x%0h, MR13[5]=0x%0h",
+                             base_addr, actual_scene, mr3_dat[7:6], mr13_dat[5]));
+      end
+    end
+    default: begin
+      `uvm_error(get_full_name(), $sformatf("Unsupported LPDDR5 DMI scene: expected=%0d actual=%0d", scene, actual_scene));
+    end
+  endcase
 endtask
 
 task apb_ctrl_mr_seq::ctrl_mrw_check(input bit[63:0] MRW_DAT,input bit[15:0]MRDATECC,input bit[7:0]MR_OP);
